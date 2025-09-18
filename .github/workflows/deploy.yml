@@ -1,7 +1,7 @@
 name: 🚀 Deploy Website on Push
 on:
   push:
-    branches: [ master ]
+    branches: [ Pay2 ]
 jobs:
   web-deploy:
     name: 🎉 Deploy
