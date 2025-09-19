@@ -56,13 +56,13 @@ include('../config/dbcon.php'); // Include database connection
                                 // Sanitize data to prevent XSS
                                 $deposit_id = htmlspecialchars($data['id']);
                                 $amount = htmlspecialchars($data['amount']);
-                                $currency = htmlspecialchars($data['currency'] ?? '$'); // Fallback to '$' if currency is null
+                                $currency = htmlspecialchars($data['currency'] ?? '$');
                                 $name = htmlspecialchars($data['name']);
-                                $email = htmlspecialchars($data['email'] ?? 'No Email'); // Fallback for missing email
+                                $email = htmlspecialchars($data['email'] ?? 'No Email');
                                 $image = htmlspecialchars($data['image']);
                                 $approval_status = htmlspecialchars($data['approval_status']);
-                                $payment_plan = (int)($data['payment_plan'] ?? 1); // Fallback to 1 if null
-                                $installment_number = (int)($data['installment_number'] ?? 1); // Fallback to 1 if null
+                                $payment_plan = (int)($data['payment_plan'] ?? 1);
+                                $installment_number = (int)($data['installment_number'] ?? 1);
                                 
                                 // Capitalize status for display
                                 $display_status = ucfirst($approval_status);
@@ -73,16 +73,25 @@ include('../config/dbcon.php'); // Include database connection
                                 // Add 5 hours to the created_at timestamp
                                 $dateTime = new DateTime($data['created_at']);
                                 $dateTime->modify('+5 hours');
-                                $created_at = $dateTime->format('d-M-Y'); // Adjusted date
-                                $time = $dateTime->format('H:i:s'); // Adjusted time
+                                $created_at = $dateTime->format('d-M-Y');
+                                $time = $dateTime->format('H:i:s');
                                 
-                                $user_id = htmlspecialchars($data['user_id'] ?? ''); // User ID from users table
+                                $user_id = htmlspecialchars($data['user_id'] ?? '');
                         ?>
                                 <tr>
                                     <td><?= $currency ?> <?= number_format($amount, 2) ?></td>
                                     <td class="deposit-name"><?= $name ?></td>
                                     <td class="deposit-email"><?= $email ?></td>
-                                    <td><?= $installment_display ?></td>
+                                    <td>
+                                        <span class="badge bg-info text-light installment-badge" 
+                                              data-deposit-id="<?= $deposit_id ?>" 
+                                              data-payment-plan="<?= $payment_plan ?>" 
+                                              data-installment-number="<?= $installment_number ?>" 
+                                              style="cursor: pointer;" 
+                                              onclick="openInstallmentModal(<?= $deposit_id ?>, <?= $payment_plan ?>, <?= $installment_number ?>)">
+                                            <?= $installment_display ?>
+                                        </span>
+                                    </td>
                                     <td>
                                         <?php if ($image) { ?>
                                             <img src="../Uploads/<?= $image ?>" style="width:50px;height:50px" alt="Payment Proof" class="">
@@ -152,11 +161,38 @@ include('../config/dbcon.php'); // Include database connection
             </div>
         </div>
     </div>
+
+    <!-- Installment Change Modal -->
+    <div class="modal fade" id="installmentModal" tabindex="-1" aria-labelledby="installmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="installmentModalLabel">Change Installment Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="paymentPlanInput" class="form-label">Total Installments (Payment Plan)</label>
+                        <input type="number" id="paymentPlanInput" class="form-control" min="1" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="installmentNumberInput" class="form-label">Current Installment Number</label>
+                        <input type="number" id="installmentNumberInput" class="form-control" min="1" value="1">
+                    </div>
+                    <input type="hidden" id="installmentDepositId" value="">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveInstallmentButton">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </main><!-- End #main -->
 
 <?php include('inc/footer.php'); ?>
 
-<!-- JavaScript for real-time search and status update -->
+<!-- JavaScript for real-time search and updates -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Real-time search
@@ -182,15 +218,27 @@ document.addEventListener('DOMContentLoaded', function() {
         const select = document.getElementById('newStatusSelect');
         const depositIdInput = document.getElementById('depositId');
         
-        // Set the current status and deposit ID
         select.value = currentStatus;
         depositIdInput.value = depositId;
         
-        // Show the modal
         modal.show();
     };
 
-    // Handle save button click in the modal
+    // Function to open the installment modal
+    window.openInstallmentModal = function(depositId, paymentPlan, installmentNumber) {
+        const modal = new bootstrap.Modal(document.getElementById('installmentModal'));
+        const paymentPlanInput = document.getElementById('paymentPlanInput');
+        const installmentNumberInput = document.getElementById('installmentNumberInput');
+        const depositIdInput = document.getElementById('installmentDepositId');
+        
+        paymentPlanInput.value = paymentPlan;
+        installmentNumberInput.value = installmentNumber;
+        depositIdInput.value = depositId;
+        
+        modal.show();
+    };
+
+    // Handle save button click for status
     document.getElementById('saveStatusButton').addEventListener('click', function() {
         const depositId = document.getElementById('depositId').value;
         const newStatus = document.getElementById('newStatusSelect').value;
@@ -212,7 +260,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 alert('Status updated successfully.');
-                // Update the badge text and class
                 const badge = document.querySelector(`.status-badge[data-deposit-id="${depositId}"]`);
                 badge.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
                 badge.className = `badge status-badge ${
@@ -230,6 +277,55 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             alert('Error updating status: ' + error.message);
             bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
+        });
+    });
+
+    // Handle save button click for installment
+    document.getElementById('saveInstallmentButton').addEventListener('click', function() {
+        const depositId = document.getElementById('installmentDepositId').value;
+        const paymentPlan = parseInt(document.getElementById('paymentPlanInput').value);
+        const installmentNumber = parseInt(document.getElementById('installmentNumberInput').value);
+        const currentPaymentPlan = parseInt(document.querySelector(`.installment-badge[data-deposit-id="${depositId}"]`).getAttribute('data-payment-plan'));
+        const currentInstallmentNumber = parseInt(document.querySelector(`.installment-badge[data-deposit-id="${depositId}"]`).getAttribute('data-installment-number'));
+
+        // Validate inputs
+        if (paymentPlan < 1 || installmentNumber < 1) {
+            alert('Payment plan and installment number must be at least 1.');
+            return;
+        }
+        if (installmentNumber > paymentPlan) {
+            alert('Current installment number cannot exceed total payment plan.');
+            return;
+        }
+        if (paymentPlan === currentPaymentPlan && installmentNumber === currentInstallmentNumber) {
+            bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
+            return;
+        }
+
+        fetch('update-deposit-installment.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `deposit_id=${depositId}&payment_plan=${paymentPlan}&installment_number=${installmentNumber}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Installment details updated successfully.');
+                const badge = document.querySelector(`.installment-badge[data-deposit-id="${depositId}"]`);
+                badge.textContent = paymentPlan > 1 ? `${installmentNumber}/${paymentPlan}` : 'One-Time';
+                badge.setAttribute('data-payment-plan', paymentPlan);
+                badge.setAttribute('data-installment-number', installmentNumber);
+                bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
+            } else {
+                alert('Error updating installment details: ' + data.message);
+                bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
+            }
+        })
+        .catch(error => {
+            alert('Error updating installment details: ' + error.message);
+            bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
         });
     });
 });
