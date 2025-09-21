@@ -902,7 +902,7 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="fas fa-globe-americas"></i>
-                                www.pay1.cashapp.infy.uk
+                                www.pay1.cashapp.ct.ws
                             </p>
                         </li>
                     </ul>
