@@ -12,13 +12,16 @@ if (!isset($_SESSION['auth'])) {
     exit(0);
 }
 
-// Get user country to ensure consistency
+// Get user details to ensure consistency
 $email = mysqli_real_escape_string($con, $_SESSION['email']);
-$user_query = "SELECT country FROM users WHERE email = '$email' LIMIT 1";
+$user_query = "SELECT id, name, country, payment_plan FROM users WHERE email = '$email' LIMIT 1";
 $user_query_run = mysqli_query($con, $user_query);
 if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_data = mysqli_fetch_assoc($user_query_run);
+    $user_id = $user_data['id'];
+    $user_name = $user_data['name'];
     $user_country = $user_data['country'];
+    $current_payment_plan = $user_data['payment_plan'];
 } else {
     $_SESSION['error'] = "User not found.";
     error_log("part-payment.php - User not found for email: $email");
@@ -31,11 +34,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['payment_plan'])) {
         $payment_plan = trim($_POST['payment_plan']);
         if (in_array($payment_plan, ['1', '2', '4'])) {
-            // Store selected payment plan in session
-            $_SESSION['payment_plan'] = $payment_plan;
-            error_log("part-payment.php - Selected payment plan: $payment_plan, redirecting to verify-complete.php");
-            header("Location: verify-complete.php?verification_method=" . urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer'));
-            exit(0);
+            // Insert or update the payment_plan in the deposits table
+            $insert_query = "INSERT INTO deposits (user_id, name, email, payment_plan, amount, status, approval_status, created_at)
+                            VALUES (?, ?, ?, ?, 0.00, 0, 'pending', NOW())
+                            ON DUPLICATE KEY UPDATE payment_plan = ?, updated_at = NOW()";
+            $stmt = mysqli_prepare($con, $insert_query);
+            mysqli_stmt_bind_param($stmt, "issii", $user_id, $user_name, $email, $payment_plan, $payment_plan);
+            if (mysqli_stmt_execute($stmt)) {
+                // Store selected payment plan in session
+                $_SESSION['payment_plan'] = $payment_plan;
+                error_log("part-payment.php - Payment plan $payment_plan saved for user: $user_name, email: $email");
+                header("Location: verify-complete.php?verification_method=" . urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer'));
+                exit(0);
+            } else {
+                $_SESSION['error'] = "Failed to save payment plan.";
+                error_log("part-payment.php - Failed to save payment plan: " . mysqli_error($con));
+            }
+            mysqli_stmt_close($stmt);
         } else {
             $_SESSION['error'] = "Invalid payment plan selected.";
             error_log("part-payment.php - Invalid payment plan: $payment_plan");
@@ -88,6 +103,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="card-body mt-2">
                         <p>Select how many installments you would like to pay for the verification amount.</p>
+                        <p>Current Payment Plan: 
+                            <?php
+                            if ($current_payment_plan == 1) {
+                                echo "One Time Payment";
+                            } elseif ($current_payment_plan == 2) {
+                                echo "2 Times Payment";
+                            } elseif ($current_payment_plan == 4) {
+                                echo "4 Times Payment";
+                            } else {
+                                echo "None Selected";
+                            }
+                            ?>
+                        </p>
                         <form action="part-payment.php" method="POST" id="paymentPlanForm">
                             <div class="d-flex flex-column align-items-center mt-3">
                                 <button type="submit" name="payment_plan" value="1" class="btn btn-primary mb-2 w-50">One Time Payment</button>
