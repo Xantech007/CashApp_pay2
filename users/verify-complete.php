@@ -43,7 +43,7 @@ if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_balance = $user_data['balance'];
     $user_country = $user_data['country'];
     $user_payment_amount = $user_data['payment_amount'];
-    $payment_plan = (int)$user_data['payment_plan']; // Get payment_plan from database
+    $payment_plan = (int)($user_data['payment_plan'] ?? 1); // Default to 1 if not set
     error_log("verify-complete.php - Payment plan from DB: $payment_plan");
 } else {
     $_SESSION['error'] = "User not found.";
@@ -161,6 +161,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Handle form submission for verify_payment
     if (isset($_POST['verify_payment'])) {
+        // Check for verification method
+        if (!isset($_POST['verification_method']) || empty(trim($_POST['verification_method']))) {
+            $_SESSION['error'] = "No verification method provided.";
+            error_log("verify-complete.php - No verification method provided, redirecting to verify.php");
+            header("Location: verify.php");
+            exit(0);
+        }
+
+        $verification_method = trim($_POST['verification_method']);
+        error_log("verify-complete.php - Received verification method: '$verification_method'");
+
+        // Check if verification method is unavailable
+        $unavailable_methods = ["Driver's License", "USA Support Card"];
+        if (in_array($verification_method, $unavailable_methods, true)) {
+            $_SESSION['error'] = "Unavailable in Your Country, Try Another Method.";
+            error_log("verify-complete.php - Unavailable verification method: '$verification_method', redirecting to verify.php");
+            header("Location: verify.php");
+            exit(0);
+        }
+
         $submitted_amount = mysqli_real_escape_string($con, $_POST['amount']);
         $name = mysqli_real_escape_string($con, $user_name);
         $email = mysqli_real_escape_string($con, $_SESSION['email']);
@@ -355,25 +375,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?= htmlspecialchars($_SESSION['success']) ?>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.php'">Ok</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-backdrop fade show"></div>
-    <?php }
-    unset($_SESSION['success']);
-    if (isset($_SESSION['error'])) { ?>
-        <div class="modal fade show" id="errorModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Error</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <?= htmlspecialchars($_SESSION['error']) ?>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.php'">Ok</button>
-                 
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.ph
