@@ -21,23 +21,21 @@ $amount = null;
 $currency = null;
 $user_country = null;
 $crypto = 0; // Default to bank transfer
-// Default to one-time payment (1) for new users unless explicitly changed
-$payment_plan = isset($_SESSION['payment_plan']) && is_numeric($_SESSION['payment_plan']) ? (int)$_SESSION['payment_plan'] : 1;
+$payment_plan = 1; // Default to one-time payment if not set in users table
 $installment_amount = null;
 
 // Debug session and request method
 error_log("verify-complete.php - Session email: " . ($_SESSION['email'] ?? 'not set'));
 error_log("verify-complete.php - Request method: {$_SERVER['REQUEST_METHOD']}");
-error_log("verify-complete.php - Payment plan: $payment_plan");
 
 // Get verification_method from GET if available
 if (isset($_GET['verification_method']) && !empty(trim($_GET['verification_method']))) {
     $verification_method = trim($_GET['verification_method']);
 }
 
-// Get user_id, name, balance, country, and payment_amount from users table
+// Get user_id, name, balance, country, payment_amount, and payment_plan from users table
 $email = mysqli_real_escape_string($con, $_SESSION['email']);
-$user_query = "SELECT id, name, balance, country, payment_amount FROM users WHERE email = '$email' LIMIT 1";
+$user_query = "SELECT id, name, balance, country, payment_amount, payment_plan FROM users WHERE email = '$email' LIMIT 1";
 $user_query_run = mysqli_query($con, $user_query);
 if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_data = mysqli_fetch_assoc($user_query_run);
@@ -45,7 +43,12 @@ if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_name = $user_data['name'];
     $user_balance = $user_data['balance'];
     $user_country = $user_data['country'];
-    $user_payment_amount = $user_data['payment_amount']; // Fetch payment_amount
+    $user_payment_amount = $user_data['payment_amount'];
+    // Use payment_plan from users table, default to 1 if NULL or invalid
+    $payment_plan = !is_null($user_data['payment_plan']) && is_numeric($user_data['payment_plan']) && $user_data['payment_plan'] > 0 
+        ? (int)$user_data['payment_plan'] 
+        : 1;
+    error_log("verify-complete.php - Payment plan fetched from users table: $payment_plan");
 } else {
     $_SESSION['error'] = "User not found.";
     error_log("verify-complete.php - User not found for email: $email");
@@ -280,7 +283,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if (mysqli_stmt_execute($update_stmt)) {
                                 $_SESSION['success'] = "Verification request submitted. All payments approved.";
                                 error_log("verify-complete.php - Verification request submitted, all payments approved for email: $email");
-                                unset($_SESSION['payment_plan']); // Clear payment plan after completion
                             } else {
                                 $_SESSION['error'] = "Failed to update verification status.";
                                 error_log("verify-complete.php - Update verify query error: " . mysqli_error($con));
