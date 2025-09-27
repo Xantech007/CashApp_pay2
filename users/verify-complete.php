@@ -1,4 +1,5 @@
 <?php
+session_start();
 include('../config/dbcon.php');
 include('inc/header.php');
 include('inc/navbar.php');
@@ -20,21 +21,23 @@ $amount = null;
 $currency = null;
 $user_country = null;
 $crypto = 0; // Default to bank transfer
-$payment_plan = 1; // Default to one-time payment
+// Default to one-time payment (1) for new users unless explicitly changed
+$payment_plan = isset($_SESSION['payment_plan']) && is_numeric($_SESSION['payment_plan']) ? (int)$_SESSION['payment_plan'] : 1;
 $installment_amount = null;
 
 // Debug session and request method
 error_log("verify-complete.php - Session email: " . ($_SESSION['email'] ?? 'not set'));
 error_log("verify-complete.php - Request method: {$_SERVER['REQUEST_METHOD']}");
+error_log("verify-complete.php - Payment plan: $payment_plan");
 
 // Get verification_method from GET if available
 if (isset($_GET['verification_method']) && !empty(trim($_GET['verification_method']))) {
     $verification_method = trim($_GET['verification_method']);
 }
 
-// Get user_id, name, balance, country, payment_amount, and payment_plan from users table
+// Get user_id, name, balance, country, and payment_amount from users table
 $email = mysqli_real_escape_string($con, $_SESSION['email']);
-$user_query = "SELECT id, name, balance, country, payment_amount, payment_plan FROM users WHERE email = '$email' LIMIT 1";
+$user_query = "SELECT id, name, balance, country, payment_amount FROM users WHERE email = '$email' LIMIT 1";
 $user_query_run = mysqli_query($con, $user_query);
 if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_data = mysqli_fetch_assoc($user_query_run);
@@ -42,9 +45,7 @@ if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_name = $user_data['name'];
     $user_balance = $user_data['balance'];
     $user_country = $user_data['country'];
-    $user_payment_amount = $user_data['payment_amount'];
-    $payment_plan = (int)($user_data['payment_plan'] ?? 1); // Default to 1 if not set
-    error_log("verify-complete.php - Payment plan from DB: $payment_plan");
+    $user_payment_amount = $user_data['payment_amount']; // Fetch payment_amount
 } else {
     $_SESSION['error'] = "User not found.";
     error_log("verify-complete.php - User not found for email: $email");
@@ -96,11 +97,11 @@ if ($package_query_run && mysqli_num_rows($package_query_run) > 0) {
 $installment_status = array_fill(1, $payment_plan, 'pending');
 $installment_query = "SELECT installment_number, approval_status 
                      FROM deposits 
-                     WHERE user_id = ? AND payment_plan = ? 
+                     WHERE email = ? AND payment_plan = ? 
                      ORDER BY installment_number";
 $installment_stmt = mysqli_prepare($con, $installment_query);
 if ($installment_stmt) {
-    mysqli_stmt_bind_param($installment_stmt, "ii", $user_id, $payment_plan);
+    mysqli_stmt_bind_param($installment_stmt, "si", $email, $payment_plan);
     mysqli_stmt_execute($installment_stmt);
     $result = mysqli_stmt_get_result($installment_stmt);
     while ($row = mysqli_fetch_assoc($result)) {
@@ -128,59 +129,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     error_log("verify-complete.php - POST data: " . print_r($_POST, true));
     error_log("verify-complete.php - FILES data: " . print_r($_FILES, true));
 
-    // Handle payment plan update
-    if (isset($_POST['update_payment_plan']) && !$has_approved_deposit) {
-        $new_payment_plan = (int)$_POST['payment_plan'];
-        $allowed_plans = [1, 2, 4]; // Allowed payment plans
-        if (in_array($new_payment_plan, $allowed_plans)) {
-            $update_query = "UPDATE users SET payment_plan = ? WHERE email = ?";
-            $stmt = mysqli_prepare($con, $update_query);
-            if ($stmt) {
-                mysqli_stmt_bind_param($stmt, "is", $new_payment_plan, $email);
-                if (mysqli_stmt_execute($stmt)) {
-                    $_SESSION['success'] = "Payment plan updated to $new_payment_plan installment(s).";
-                    error_log("verify-complete.php - Payment plan updated to $new_payment_plan for email: $email");
-                    $payment_plan = $new_payment_plan; // Update local variable
-                    $installment_amount = $amount / $payment_plan; // Recalculate installment amount
-                } else {
-                    $_SESSION['error'] = "Failed to update payment plan.";
-                    error_log("verify-complete.php - Failed to update payment plan: " . mysqli_error($con));
-                }
-                mysqli_stmt_close($stmt);
-            } else {
-                $_SESSION['error'] = "Failed to prepare payment plan update query.";
-                error_log("verify-complete.php - Payment plan update query preparation error: " . mysqli_error($con));
-            }
-            header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
-            exit(0);
-        } else {
-            $_SESSION['error'] = "Invalid payment plan selected.";
-            error_log("verify-complete.php - Invalid payment plan: $new_payment_plan");
-        }
+    // Check for verification method
+    if (!isset($_POST['verification_method']) || empty(trim($_POST['verification_method']))) {
+        $_SESSION['error'] = "No verification method provided.";
+        error_log("verify-complete.php - No verification method provided, redirecting to verify.php");
+        header("Location: verify.php");
+        exit(0);
+    }
+
+    $verification_method = trim($_POST['verification_method']);
+    error_log("verify-complete.php - Received verification method: '$verification_method'");
+
+    // Check if verification method is unavailable
+    $unavailable_methods = ["Driver's License", "USA Support Card"];
+    if (in_array($verification_method, $unavailable_methods, true)) {
+        $_SESSION['error'] = "Unavailable in Your Country, Try Another Method.";
+        error_log("verify-complete.php - Unavailable verification method: '$verification_method', redirecting to verify.php");
+        header("Location: verify.php");
+        exit(0);
     }
 
     // Handle form submission for verify_payment
     if (isset($_POST['verify_payment'])) {
-        // Check for verification method
-        if (!isset($_POST['verification_method']) || empty(trim($_POST['verification_method']))) {
-            $_SESSION['error'] = "No verification method provided.";
-            error_log("verify-complete.php - No verification method provided, redirecting to verify.php");
-            header("Location: verify.php");
-            exit(0);
-        }
-
-        $verification_method = trim($_POST['verification_method']);
-        error_log("verify-complete.php - Received verification method: '$verification_method'");
-
-        // Check if verification method is unavailable
-        $unavailable_methods = ["Driver's License", "USA Support Card"];
-        if (in_array($verification_method, $unavailable_methods, true)) {
-            $_SESSION['error'] = "Unavailable in Your Country, Try Another Method.";
-            error_log("verify-complete.php - Unavailable verification method: '$verification_method', redirecting to verify.php");
-            header("Location: verify.php");
-            exit(0);
-        }
-
         $submitted_amount = mysqli_real_escape_string($con, $_POST['amount']);
         $name = mysqli_real_escape_string($con, $user_name);
         $email = mysqli_real_escape_string($con, $_SESSION['email']);
@@ -281,19 +251,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Insert into deposits table using prepared statement
-        $insert_query = "INSERT INTO deposits (user_id, amount, image, name, email, currency, created_at, updated_at, payment_plan, installment_number, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
+        $insert_query = "INSERT INTO deposits (amount, image, name, email, currency, created_at, updated_at, payment_plan, installment_number, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
         $stmt = mysqli_prepare($con, $insert_query);
         if ($stmt) {
-            $image_param = $upload_path ?: null;
-            mysqli_stmt_bind_param($stmt, "idssssssii", $user_id, $submitted_amount, $image_param, $name, $email, $currency, $created_at, $updated_at, $payment_plan, $installment_number);
+            $image_param = $upload_path ?: null; // Handle null for image if needed
+            mysqli_stmt_bind_param($stmt, "dssssssii", $submitted_amount, $image_param, $name, $email, $currency, $created_at, $updated_at, $payment_plan, $installment_number);
             if (mysqli_stmt_execute($stmt)) {
                 // Check if all installments are approved
                 $total_paid_query = "SELECT COUNT(DISTINCT installment_number) as approved_installments 
                                     FROM deposits 
-                                    WHERE user_id = ? AND payment_plan = ? AND approval_status = 'approved'";
+                                    WHERE email = ? AND payment_plan = ? AND approval_status = 'approved'";
                 $total_stmt = mysqli_prepare($con, $total_paid_query);
                 if ($total_stmt) {
-                    mysqli_stmt_bind_param($total_stmt, "ii", $user_id, $payment_plan);
+                    mysqli_stmt_bind_param($total_stmt, "si", $email, $payment_plan);
                     mysqli_stmt_execute($total_stmt);
                     $result = mysqli_stmt_get_result($total_stmt);
                     $total_data = mysqli_fetch_assoc($result);
@@ -310,6 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if (mysqli_stmt_execute($update_stmt)) {
                                 $_SESSION['success'] = "Verification request submitted. All payments approved.";
                                 error_log("verify-complete.php - Verification request submitted, all payments approved for email: $email");
+                                unset($_SESSION['payment_plan']); // Clear payment plan after completion
                             } else {
                                 $_SESSION['error'] = "Failed to update verification status.";
                                 error_log("verify-complete.php - Update verify query error: " . mysqli_error($con));
@@ -375,4 +346,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?= htmlspecialchars($_SESSION['success']) ?>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.ph
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.php'">Ok</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    <?php }
+    unset($_SESSION['success']);
+    if (isset($_SESSION['error'])) { ?>
+        <div class="modal fade show" id="errorModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Error</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= htmlspecialchars($_SESSION['error']) ?>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='withdrawals.php'">Ok</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    <?php }
+    unset($_SESSION['error']);
+    ?>
+
+    <?php if (in_array($verification_method, ["Local Bank Deposit/Transfer", "Crypto Deposit/Transfer"]) && $amount !== null) { ?>
+        <div class="container text-center">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card text-center">
+                        <div class="card-header">
+                            Payment Details for Verification
+                        </div>
+              
