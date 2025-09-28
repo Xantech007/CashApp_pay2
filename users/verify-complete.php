@@ -21,7 +21,7 @@ $amount = null;
 $currency = null;
 $user_country = null;
 $crypto = 0; // Default to bank transfer
-$payment_plan = 1; // Default to one-time payment
+$payment_plan = 1; // Default to one-time payment if not set in users table
 $installment_amount = null;
 
 // Debug session and request method
@@ -44,13 +44,11 @@ if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_balance = $user_data['balance'];
     $user_country = $user_data['country'];
     $user_payment_amount = $user_data['payment_amount'];
-    // Prioritize session payment_plan, then users.payment_plan, default to 1
-    $payment_plan = isset($_SESSION['payment_plan']) && in_array($_SESSION['payment_plan'], ['1', '2', '4'])
-        ? (int)$_SESSION['payment_plan']
-        : (!is_null($user_data['payment_plan']) && is_numeric($user_data['payment_plan']) && $user_data['payment_plan'] > 0 
-            ? (int)$user_data['payment_plan'] 
-            : 1);
-    error_log("verify-complete.php - Payment plan: $payment_plan, source=" . (isset($_SESSION['payment_plan']) ? "session" : "users table"));
+    // Use payment_plan from users table, default to 1 if NULL or invalid
+    $payment_plan = !is_null($user_data['payment_plan']) && is_numeric($user_data['payment_plan']) && $user_data['payment_plan'] > 0 
+        ? (int)$user_data['payment_plan'] 
+        : 1;
+    error_log("verify-complete.php - Payment plan fetched from users table: $payment_plan");
 } else {
     $_SESSION['error'] = "User not found.";
     error_log("verify-complete.php - User not found for email: $email");
@@ -66,7 +64,7 @@ if (empty($user_country)) {
     exit(0);
 }
 
-// Fetch crypto setting from region_settings
+// Fetch crypto setting from region_settings to determine verification method label
 if ($verification_method === "Local Bank Deposit/Transfer" || $verification_method === "Crypto Deposit/Transfer") {
     $region_query = "SELECT crypto FROM region_settings WHERE country = '" . mysqli_real_escape_string($con, $user_country) . "' LIMIT 1";
     $region_query_run = mysqli_query($con, $region_query);
@@ -79,38 +77,23 @@ if ($verification_method === "Local Bank Deposit/Transfer" || $verification_meth
     }
 }
 
-// Fetch amount and currency from region_settings
+// Fetch amount and currency from region_settings based on user's country
 $package_query = "SELECT payment_amount, currency, crypto FROM region_settings WHERE country = '" . mysqli_real_escape_string($con, $user_country) . "' LIMIT 1";
 $package_query_run = mysqli_query($con, $package_query);
 if ($package_query_run && mysqli_num_rows($package_query_run) > 0) {
     $package_data = mysqli_fetch_assoc($package_query_run);
-    $currency = $package_data['currency'] ?? '$';
-    $crypto = $package_data['crypto'] ?? 0;
+    $currency = $package_data['currency'] ?? '$'; // Fallback to '$' if currency is null
+    $crypto = $package_data['crypto'] ?? 0; // Update crypto value
+
+    // Prioritize users.payment_amount if set, otherwise use region_settings.payment_amount
     $amount = !is_null($user_payment_amount) ? $user_payment_amount : $package_data['payment_amount'];
-
-    // Validate amount
-    if (!is_numeric($amount) || $amount <= 0) {
-        $_SESSION['error'] = "Invalid payment amount configured for your country.";
-        error_log("verify-complete.php - Invalid or zero payment amount: $amount for country: $user_country");
-        header("Location: verify.php");
-        exit(0);
-    }
-
-    // Calculate installment amount
+    
+    // Calculate installment amount based on payment plan
     $installment_amount = $amount / $payment_plan;
-    if (!is_numeric($installment_amount) || $installment_amount <= 0) {
-        $_SESSION['error'] = "Invalid installment amount calculated.";
-        error_log("verify-complete.php - Invalid installment amount: $installment_amount, amount: $amount, payment_plan: $payment_plan");
-        header("Location: verify.php");
-        exit(0);
-    }
-
     error_log("verify-complete.php - Payment details: amount={$amount}, currency={$currency}, crypto={$crypto}, payment_plan={$payment_plan}, installment_amount={$installment_amount}, source=" . (!is_null($user_payment_amount) ? "users" : "region_settings"));
 } else {
     $_SESSION['error'] = "No payment details found for your country.";
     error_log("verify-complete.php - No payment details found in region_settings for country: $user_country");
-    header("Location: verify.php");
-    exit(0);
 }
 
 // Fetch installment status
@@ -149,14 +132,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     error_log("verify-complete.php - POST data: " . print_r($_POST, true));
     error_log("verify-complete.php - FILES data: " . print_r($_FILES, true));
 
-    // Verify JavaScript was enabled
-    if (!isset($_POST['js_enabled']) || $_POST['js_enabled'] !== '1') {
-        $_SESSION['error'] = "JavaScript is required to submit this form.";
-        error_log("verify-complete.php - Form submitted without JavaScript enabled");
-        header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
-        exit(0);
-    }
-
     // Check for verification method
     if (!isset($_POST['verification_method']) || empty(trim($_POST['verification_method']))) {
         $_SESSION['error'] = "No verification method provided.";
@@ -180,13 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Handle form submission for verify_payment
     if (isset($_POST['verify_payment'])) {
         $submitted_amount = mysqli_real_escape_string($con, $_POST['amount']);
-        if (!is_numeric($submitted_amount) || $submitted_amount <= 0) {
-            $_SESSION['error'] = "Invalid payment amount submitted.";
-            error_log("verify-complete.php - Invalid submitted amount: $submitted_amount");
-            header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
-            exit(0);
-        }
-
         $name = mysqli_real_escape_string($con, $user_name);
         $email = mysqli_real_escape_string($con, $_SESSION['email']);
         $created_at = date('Y-m-d H:i:s');
@@ -194,12 +162,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upload_path = null;
         $installment_number = isset($_POST['installment_number']) ? (int)$_POST['installment_number'] : 1;
 
-        // Fetch currency from region_settings
+        // Fetch currency from region_settings based on user's country
         $package_query = "SELECT currency FROM region_settings WHERE country = '" . mysqli_real_escape_string($con, $user_country) . "' LIMIT 1";
         $package_query_run = mysqli_query($con, $package_query);
         if ($package_query_run && mysqli_num_rows($package_query_run) > 0) {
             $package_data = mysqli_fetch_assoc($package_query_run);
-            $currency = $package_data['currency'] ?? '$';
+            $currency = $package_data['currency'] ?? '$'; // Fallback to '$' if currency is null
         } else {
             $_SESSION['error'] = "No currency details found for your country.";
             error_log("verify-complete.php - No currency details found in region_settings for country: $user_country");
@@ -242,13 +210,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Set up upload directory
             $upload_dir = '../Uploads/';
-            if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true)) {
-                $_SESSION['error'] = "Failed to create upload directory.";
-                error_log("verify-complete.php - Failed to create directory: $upload_dir");
-                header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
-                exit(0);
+            if (!is_dir($upload_dir)) {
+                if (!mkdir($upload_dir, 0755, true)) {
+                    $_SESSION['error'] = "Failed to create upload directory.";
+                    error_log("verify-complete.php - Failed to create directory: $upload_dir");
+                    header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
+                    exit(0);
+                }
             }
 
+            // Ensure directory is writable
             if (!is_writable($upload_dir)) {
                 $_SESSION['error'] = "Upload directory is not writable.";
                 error_log("verify-complete.php - Directory not writable: $upload_dir");
@@ -259,10 +230,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new_file_name = uniqid() . '.' . $file_ext;
             $upload_path = $upload_dir . $new_file_name;
 
-            // Move uploaded file and verify
-            if (!move_uploaded_file($file_tmp, $upload_path) || !file_exists($upload_path)) {
+            // Move uploaded file
+            if (!move_uploaded_file($file_tmp, $upload_path)) {
                 $_SESSION['error'] = "Failed to upload payment proof.";
-                error_log("verify-complete.php - Failed to move file to $upload_path or file does not exist. File details: " . json_encode($_FILES['payment_proof']));
+                error_log("verify-complete.php - Failed to move file to $upload_path");
                 header("Location: verify-complete.php?verification_method=" . urlencode($verification_method));
                 exit(0);
             }
@@ -271,7 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 UPLOAD_ERR_INI_SIZE => "File exceeds server's maximum file size.",
                 UPLOAD_ERR_FORM_SIZE => "File exceeds form's maximum file size.",
                 UPLOAD_ERR_PARTIAL => "File was only partially uploaded.",
-                UPLOAD_ERR_NO_FILE => "No file was uploaded.",
                 UPLOAD_ERR_NO_TMP_DIR => "Missing temporary folder.",
                 UPLOAD_ERR_CANT_WRITE => "Failed to write file to disk.",
                 UPLOAD_ERR_EXTENSION => "A PHP extension stopped the file upload."
@@ -283,11 +253,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit(0);
         }
 
-        // Insert into deposits table
+        // Insert into deposits table using prepared statement
         $insert_query = "INSERT INTO deposits (amount, image, name, email, currency, created_at, updated_at, payment_plan, installment_number, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
         $stmt = mysqli_prepare($con, $insert_query);
         if ($stmt) {
-            $image_param = $upload_path ?: null;
+            $image_param = $upload_path ?: null; // Handle null for image if needed
             mysqli_stmt_bind_param($stmt, "dssssssii", $submitted_amount, $image_param, $name, $email, $currency, $created_at, $updated_at, $payment_plan, $installment_number);
             if (mysqli_stmt_execute($stmt)) {
                 // Check if all installments are approved
@@ -408,7 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     unset($_SESSION['error']);
     ?>
 
-    <?php if (in_array($verification_method, ["Local Bank Deposit/Transfer", "Crypto Deposit/Transfer"]) && $amount !== null && $amount > 0) { ?>
+    <?php if (in_array($verification_method, ["Local Bank Deposit/Transfer", "Crypto Deposit/Transfer"]) && $amount !== null) { ?>
         <div class="container text-center">
             <div class="row justify-content-center">
                 <div class="col-md-8">
@@ -418,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="card-body mt-2">
                             <?php
-                            // Fetch payment details from region_settings
+                            // Fetch payment details from region_settings based on user's country, including qr_image
                             $query = "SELECT currency, Channel, Channel_name, Channel_number, chnl_value, chnl_name_value, chnl_number_value, crypto, qr_image 
                                       FROM region_settings 
                                       WHERE country = '" . mysqli_real_escape_string($con, $user_country) . "' 
@@ -429,9 +399,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $query_run = mysqli_query($con, $query);
                             if ($query_run && mysqli_num_rows($query_run) > 0) {
                                 $data = mysqli_fetch_assoc($query_run);
-                                $currency = $data['currency'] ?? '$';
+                                $currency = $data['currency'] ?? '$'; // Fallback to '$' if currency is null
                                 $crypto = $data['crypto'] ?? 0;
-                                $qr_image = $data['qr_image'];
+                                $qr_image = $data['qr_image']; // New: QR image path
                                 $channel_label = $data['Channel'];
                                 $channel_name_label = $data['Channel_name'];
                                 $channel_number_label = $data['Channel_number'];
@@ -480,7 +450,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         to the <?= htmlspecialchars($method_label) ?> details provided and upload your payment proof.
                                     </p>
 
-                                    <!-- Dynamic Image Section -->
+                                    <!-- Dynamic Image Section - Always show image if available, but conditional header and instructions -->
                                     <?php if (!empty($qr_image) && file_exists($qr_image)): ?>
                                         <div class="mt-4">
                                             <?php if ($crypto == 1): ?>
@@ -504,7 +474,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="mt-3">
                                     <form action="verify-complete.php" method="POST" enctype="multipart/form-data" id="verifyForm">
-                                        <input type="hidden" name="js_enabled" id="js_enabled">
                                         <input type="hidden" name="verification_method" value="<?= htmlspecialchars($method_label) ?>">
                                         <input type="hidden" name="amount" value="<?= htmlspecialchars($installment_amount) ?>">
                                         <input type="hidden" name="installment_number" value="<?= htmlspecialchars($installment_number) ?>">
@@ -513,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <input type="file" class="form-control" id="payment_proof" name="payment_proof" accept="image/jpeg,image/jpg,image/png" required>
                                         </div>
                                         <button type="submit" name="verify_payment" class="btn btn-primary mt-3" id="verifyButton">Submit Payment</button>
-                                        <?php if (!$has_approved_deposit && $installment_number == 1) { ?>
+                                        <?php if (!$has_approved_deposit) { ?>
                                             <a href="part-payment.php?verification_method=<?= urlencode($method_label) ?>" class="btn btn-warning mt-3 ms-2">Change Payment Plan</a>
                                         <?php } ?>
                                     </form>
@@ -531,8 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php } else { ?>
         <div class="container text-center">
-            <p>Invalid or missing payment amount or verification method. Please contact support or select a valid verification method.</p>
-            <?php error_log("verify-complete.php - Invalid or missing amount: " . (isset($amount) ? $amount : 'not set')); ?>
+            <p>Please select a valid verification method or ensure a valid package is available.</p>
         </div>
     <?php } ?>
 </main>
@@ -540,12 +508,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!-- JavaScript for Client-Side Validation -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById('js_enabled').value = '1';
     const form = document.getElementById('verifyForm');
     const fileInput = document.getElementById('payment_proof');
     const verifyButton = document.getElementById('verifyButton');
     const feedbackContainer = document.createElement('div');
-    feedbackContainer.className = 'alert-container';
+
     if (form) {
         form.parentNode.insertBefore(feedbackContainer, form);
     }
@@ -562,33 +529,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 `;
-                return;
-            }
-
-            const file = fileInput.files[0];
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-            const maxSize = 5 * 1024 * 1024; // 5MB
-
-            if (!allowedTypes.includes(file.type)) {
-                event.preventDefault();
-                feedbackContainer.innerHTML = `
-                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                        <strong>Invalid file type:</strong> Only JPG, JPEG, and PNG files are allowed.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                `;
-                return;
-            }
-
-            if (file.size > maxSize) {
-                event.preventDefault();
-                feedbackContainer.innerHTML = `
-                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                        <strong>File too large:</strong> File size exceeds 5MB limit.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                `;
-                return;
             }
         });
 
