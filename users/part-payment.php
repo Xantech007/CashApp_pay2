@@ -12,7 +12,7 @@ if (!isset($_SESSION['auth'])) {
     exit(0);
 }
 
-// Get user details to ensure consistency
+// Get user details
 $email = mysqli_real_escape_string($con, $_SESSION['email']);
 $user_query = "SELECT id, name, country, payment_plan FROM users WHERE email = '$email' LIMIT 1";
 $user_query_run = mysqli_query($con, $user_query);
@@ -21,7 +21,7 @@ if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
     $user_id = $user_data['id'];
     $user_name = $user_data['name'];
     $user_country = $user_data['country'];
-    $current_payment_plan = $user_data['payment_plan'];
+    $current_payment_plan = $user_data['payment_plan'] ?? 1;
 } else {
     $_SESSION['error'] = "User not found.";
     error_log("part-payment.php - User not found for email: $email");
@@ -34,23 +34,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['payment_plan'])) {
         $payment_plan = trim($_POST['payment_plan']);
         if (in_array($payment_plan, ['1', '2', '4'])) {
-            // Insert or update the payment_plan in the deposits table
-            $insert_query = "INSERT INTO deposits (user_id, name, email, payment_plan, amount, status, approval_status, created_at)
-                            VALUES (?, ?, ?, ?, 0.00, 0, 'pending', NOW())
-                            ON DUPLICATE KEY UPDATE payment_plan = ?, updated_at = NOW()";
-            $stmt = mysqli_prepare($con, $insert_query);
-            mysqli_stmt_bind_param($stmt, "issii", $user_id, $user_name, $email, $payment_plan, $payment_plan);
-            if (mysqli_stmt_execute($stmt)) {
-                // Store selected payment plan in session
-                $_SESSION['payment_plan'] = $payment_plan;
-                error_log("part-payment.php - Payment plan $payment_plan saved for user: $user_name, email: $email");
-                header("Location: verify-complete.php?verification_method=" . urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer'));
+            // Check for existing approved payments
+            $check_payments_query = "SELECT COUNT(*) as approved_count FROM deposits WHERE email = ? AND approval_status = 'approved'";
+            $check_stmt = mysqli_prepare($con, $check_payments_query);
+            mysqli_stmt_bind_param($check_stmt, "s", $email);
+            mysqli_stmt_execute($check_stmt);
+            $result = mysqli_stmt_get_result($check_stmt);
+            $approved_count = mysqli_fetch_assoc($result)['approved_count'];
+            mysqli_stmt_close($check_stmt);
+
+            if ($approved_count > 0) {
+                $_SESSION['error'] = "Cannot change payment plan because you have already made approved payments.";
+                error_log("part-payment.php - Attempt to change payment plan blocked due to $approved_count approved payments for email: $email");
+                header("Location: part-payment.php");
                 exit(0);
-            } else {
-                $_SESSION['error'] = "Failed to save payment plan.";
-                error_log("part-payment.php - Failed to save payment plan: " . mysqli_error($con));
             }
-            mysqli_stmt_close($stmt);
+
+            // Update payment_plan in users table
+            $update_query = "UPDATE users SET payment_plan = ? WHERE email = ?";
+            $stmt = mysqli_prepare($con, $update_query);
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, "is", $payment_plan, $email);
+                if (mysqli_stmt_execute($stmt)) {
+                    // Optionally update deposits table
+                    $insert_deposit_query = "INSERT INTO deposits (user_id, name, email, payment_plan, amount, status, approval_status, created_at)
+                                             VALUES (?, ?, ?, ?, 0.00, 0, 'pending', NOW())
+                                             ON DUPLICATE KEY UPDATE payment_plan = ?, updated_at = NOW()";
+                    $deposit_stmt = mysqli_prepare($con, $insert_deposit_query);
+                    if ($deposit_stmt) {
+                        mysqli_stmt_bind_param($deposit_stmt, "issii", $user_id, $user_name, $email, $payment_plan, $payment_plan);
+                        mysqli_stmt_execute($deposit_stmt);
+                        mysqli_stmt_close($deposit_stmt);
+                    }
+
+                    $_SESSION['payment_plan'] = $payment_plan;
+                    $_SESSION['success'] = "Payment plan updated to " . ($payment_plan == 1 ? "One Time Payment" : "$payment_plan Installments") . ".";
+                    error_log("part-payment.php - Payment plan updated to $payment_plan for user: $user_name, email: $email");
+                    header("Location: verify-complete.php?verification_method=" . urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer'));
+                    exit(0);
+                } else {
+                    $_SESSION['error'] = "Failed to update payment plan.";
+                    error_log("part-payment.php - Failed to update users.payment_plan: " . mysqli_error($con));
+                }
+                mysqli_stmt_close($stmt);
+            } else {
+                $_SESSION['error'] = "Failed to prepare update query.";
+                error_log("part-payment.php - Failed to prepare update query: " . mysqli_error($con));
+            }
         } else {
             $_SESSION['error'] = "Invalid payment plan selected.";
             error_log("part-payment.php - Invalid payment plan: $payment_plan");
@@ -72,7 +102,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <!-- Success/Error Messages -->
-    <?php if (isset($_SESSION['error'])) { ?>
+    <?php if (isset($_SESSION['success'])) { ?>
+        <div class="modal fade show" id="successModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Success</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= htmlspecialchars($_SESSION['success']) ?>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='verify-complete.php?verification_method=<?= urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer') ?>'">Ok</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    <?php }
+    unset($_SESSION['success']);
+    if (isset($_SESSION['error'])) { ?>
         <div class="modal fade show" id="errorModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
