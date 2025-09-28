@@ -50,6 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit(0);
             }
 
+            // Clear pending deposits to reset payment plan
+            $delete_pending_query = "DELETE FROM deposits WHERE email = ? AND approval_status = 'pending'";
+            $delete_stmt = mysqli_prepare($con, $delete_pending_query);
+            mysqli_stmt_bind_param($delete_stmt, "s", $email);
+            mysqli_stmt_execute($delete_stmt);
+            mysqli_stmt_close($delete_stmt);
+
             // Update payment_plan in users table
             $update_query = "UPDATE users SET payment_plan = ? WHERE email = ?";
             $stmt = mysqli_prepare($con, $update_query);
@@ -68,8 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $_SESSION['payment_plan'] = $payment_plan;
-                    $_SESSION['success'] = "Payment plan updated to " . ($payment_plan == 1 ? "One Time Payment" : "$payment_plan Installments") . ".";
-                    error_log("part-payment.php - Payment plan updated to $payment_plan for user: $user_name, email: $email");
+                    error_log("part-payment.php - Payment plan updated to $payment_plan for user: $user_name, email: $email, previous plan: $current_payment_plan");
                     header("Location: verify-complete.php?verification_method=" . urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer'));
                     exit(0);
                 } else {
@@ -85,6 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['error'] = "Invalid payment plan selected.";
             error_log("part-payment.php - Invalid payment plan: $payment_plan");
         }
+        header("Location: part-payment.php");
+        exit(0);
     }
 }
 ?>
@@ -101,28 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </nav>
     </div>
 
-    <!-- Success/Error Messages -->
-    <?php if (isset($_SESSION['success'])) { ?>
-        <div class="modal fade show" id="successModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Success</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <?= htmlspecialchars($_SESSION['success']) ?>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="window.location.href='verify-complete.php?verification_method=<?= urlencode($_GET['verification_method'] ?? 'Local Bank Deposit/Transfer') ?>'">Ok</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-backdrop fade show"></div>
-    <?php }
-    unset($_SESSION['success']);
-    if (isset($_SESSION['error'])) { ?>
+    <!-- Error Messages -->
+    <?php if (isset($_SESSION['error'])) { ?>
         <div class="modal fade show" id="errorModal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
