@@ -30,14 +30,18 @@ include('inc/navbar.php');
                             <th scope="col">Channel Number</th>
                             <th scope="col">Status</th>
                             <th scope="col">Date</th>
-                            <th scope="col">Complete Request</th>
+                            <th scope="col">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
                         include('../config/dbcon.php'); // Include database connection
+                        // Generate CSRF token for form security
+                        if (empty($_SESSION['csrf_token'])) {
+                            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                        }
                         // Query withdrawals table only
-                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, created_at 
+                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, created_at, email 
                                   FROM withdrawals 
                                   WHERE status = '0'";
                         $query_run = mysqli_query($con, $query);
@@ -72,16 +76,28 @@ include('inc/navbar.php');
                             <td><?= htmlspecialchars($data['channel']) ?: 'N/A' ?></td>
                             <td><?= htmlspecialchars($data['channel_name']) ?: 'N/A' ?></td>
                             <td><?= htmlspecialchars($data['channel_number']) ?: 'N/A' ?></td>
-                            <?php if ($data['status'] == 0) { ?>
-                                <td><span class="badge bg-warning text-light">Pending</span></td>
-                            <?php } else { ?>
-                                <td><span class="badge bg-success text-light">Completed</span></td>
-                            <?php } ?>
+                            <td>
+                                <?php
+                                switch ($data['status']) {
+                                    case 0:
+                                        echo '<span class="badge bg-warning text-light">Pending</span>';
+                                        break;
+                                    case 1:
+                                        echo '<span class="badge bg-success text-light">Approved</span>';
+                                        break;
+                                    case 2:
+                                        echo '<span class="badge bg-danger text-light">Rejected</span>';
+                                        break;
+                                }
+                                ?>
+                            </td>
                             <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                             <td>
-                                <form action="codes/withdrawals.php" method="POST">
-                                    <button class="btn btn-light" value="<?= htmlspecialchars($data['id']) ?>" name="complete">Complete</button>
-                                </form>
+                                <button type="button" class="btn btn-primary btn-sm update-status-btn" 
+                                        data-bs-toggle="modal" data-bs-target="#statusModal" 
+                                        data-id="<?= htmlspecialchars($data['id']) ?>">
+                                    Update Status
+                                </button>
                             </td>
                         </tr>
                         <?php
@@ -101,7 +117,51 @@ include('inc/navbar.php');
             <!-- End Bordered Table -->
         </div>
     </div>
+
+    <!-- Status Update Modal -->
+    <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statusModalLabel">Update Withdrawal Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="codes/withdrawals.php" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="withdrawal_id" id="withdrawal_id">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Select Status</label>
+                            <select class="form-select" name="status" id="status" required>
+                                <option value="">-- Select Status --</option>
+                                <option value="0">Pending</option>
+                                <option value="1">Approved</option>
+                                <option value="2">Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary" name="update_status">Update</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </main><!-- End #main -->
+
+<!-- JavaScript to Pass Withdrawal ID to Modal -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var buttons = document.querySelectorAll('.update-status-btn');
+    buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            var withdrawalId = this.getAttribute('data-id');
+            document.getElementById('withdrawal_id').value = withdrawalId;
+        });
+    });
+});
+</script>
 
 <?php include('inc/footer.php'); ?>
 </html>
