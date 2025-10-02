@@ -1,6 +1,6 @@
 <?php
 session_start();
-include('../config/dbcon.php');
+include('../../config/dbcon.php');
 
 // Function to validate CSRF token
 function validate_csrf_token($token) {
