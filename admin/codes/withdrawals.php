@@ -70,14 +70,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             mysqli_stmt_execute($balance_stmt);
             mysqli_stmt_close($balance_stmt);
         }
-        // If rejected, update user message with generic message
+        // If rejected, credit amount back to user's balance and update message
         if ($status == '2') {
+            $balance_query = "UPDATE users SET balance = balance + ?, message = ? WHERE email = ?";
             $message = "Your withdrawal request of $currency$amount has been rejected.";
-            $message_query = "UPDATE users SET message = ? WHERE email = ?";
-            $message_stmt = mysqli_prepare($con, $message_query);
-            mysqli_stmt_bind_param($message_stmt, "ss", $message, $email);
-            mysqli_stmt_execute($message_stmt);
-            mysqli_stmt_close($message_stmt);
+            $balance_stmt = mysqli_prepare($con, $balance_query);
+            mysqli_stmt_bind_param($balance_stmt, "dss", $amount, $message, $email);
+            mysqli_stmt_execute($balance_stmt);
+            mysqli_stmt_close($balance_stmt);
         }
         $_SESSION['success'] = "Withdrawal status updated successfully.";
     } else {
