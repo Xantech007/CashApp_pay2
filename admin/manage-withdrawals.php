@@ -1,8 +1,9 @@
 <?php
 session_start();
 include('inc/header.php');
-include('inc/sidebar.php');
 include('inc/navbar.php');
+include('inc/sidebar.php');
+include('../config/dbcon.php');
 ?>
 
 <main id="main" class="main">
