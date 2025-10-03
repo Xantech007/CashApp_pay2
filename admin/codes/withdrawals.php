@@ -1,6 +1,6 @@
 <?php
 session_start();
-include('../config/dbcon.php');
+include('../../config/dbcon.php');
 
 // Verify CSRF token
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
