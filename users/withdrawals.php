@@ -300,8 +300,10 @@ include('inc/navbar.php');
                                     <td><?= htmlspecialchars($data['channel_number']) ?></td>
                                     <?php if ($data['status'] == 0) { ?>
                                         <td><span class="badge bg-warning text-light">Pending</span></td>
-                                    <?php } else { ?>
+                                    <?php } elseif ($data['status'] == 1) { ?>
                                         <td><span class="badge bg-success text-light">Completed</span></td>
+                                    <?php } elseif ($data['status'] == 2) { ?>
+                                        <td><span class="badge bg-danger text-light">Rejected</span></td>
                                     <?php } ?>
                                     <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                                     <td>
