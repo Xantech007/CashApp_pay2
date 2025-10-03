@@ -1,9 +1,8 @@
 <?php
 session_start();
 include('inc/header.php');
-include('inc/navbar.php');
 include('inc/sidebar.php');
-include('../config/dbcon.php');
+include('inc/navbar.php');
 ?>
 
 <main id="main" class="main">
@@ -30,6 +29,7 @@ include('../config/dbcon.php');
                             <th scope="col">Channel Name</th>
                             <th scope="col">Channel Number</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Reason</th>
                             <th scope="col">Date</th>
                             <th scope="col">Action</th>
                         </tr>
@@ -41,8 +41,8 @@ include('../config/dbcon.php');
                         if (empty($_SESSION['csrf_token'])) {
                             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                         }
-                        // Query withdrawals table only
-                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, created_at, email 
+                        // Query withdrawals table including reason
+                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, reason, created_at, email 
                                   FROM withdrawals 
                                   WHERE status = '0'";
                         $query_run = mysqli_query($con, $query);
@@ -92,13 +92,22 @@ include('../config/dbcon.php');
                                 }
                                 ?>
                             </td>
+                            <td><?= htmlspecialchars($data['reason'] ?? '-') ?></td>
                             <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                             <td>
-                                <button type="button" class="btn btn-primary btn-sm update-status-btn" 
-                                        data-bs-toggle="modal" data-bs-target="#statusModal" 
-                                        data-id="<?= htmlspecialchars($data['id']) ?>">
-                                    Update Status
-                                </button>
+                                <form action="codes/withdrawals.php" method="POST" class="d-inline">
+                                    <input type="hidden" name="withdrawal_id" value="<?= htmlspecialchars($data['id']) ?>">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                    <input type="hidden" name="status" value="1">
+                                    <button type="submit" name="update_status" class="btn btn-success btn-sm">Completed</button>
+                                </form>
+                                <form action="codes/withdrawals.php" method="POST" class="d-inline reject-form">
+                                    <input type="hidden" name="withdrawal_id" value="<?= htmlspecialchars($data['id']) ?>">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                    <input type="hidden" name="status" value="2">
+                                    <input type="hidden" name="reason" class="reject-reason">
+                                    <button type="submit" name="update_status" class="btn btn-danger btn-sm reject-btn">Rejected</button>
+                                </form>
                             </td>
                         </tr>
                         <?php
@@ -106,7 +115,7 @@ include('../config/dbcon.php');
                         } else {
                         ?>
                         <tr>
-                            <td colspan="7" class="text-center">No pending withdrawals found.</td>
+                            <td colspan="8" class="text-center">No pending withdrawals found.</td>
                         </tr>
                         <?php
                         }
@@ -118,47 +127,24 @@ include('../config/dbcon.php');
             <!-- End Bordered Table -->
         </div>
     </div>
-
-    <!-- Status Update Modal -->
-    <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="statusModalLabel">Update Withdrawal Status</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form action="codes/withdrawals.php" method="POST">
-                    <div class="modal-body">
-                        <input type="hidden" name="withdrawal_id" id="withdrawal_id">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                        <div class="mb-3">
-                            <label for="status" class="form-label">Select Status</label>
-                            <select class="form-select" name="status" id="status" required>
-                                <option value="">-- Select Status --</option>
-                                <option value="0">Pending</option>
-                                <option value="1">Approved</option>
-                                <option value="2">Rejected</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary" name="update_status">Update</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 </main><!-- End #main -->
 
-<!-- JavaScript to Pass Withdrawal ID to Modal -->
+<!-- JavaScript to Handle Rejection Reason Prompt -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var buttons = document.querySelectorAll('.update-status-btn');
-    buttons.forEach(function (button) {
-        button.addEventListener('click', function () {
-            var withdrawalId = this.getAttribute('data-id');
-            document.getElementById('withdrawal_id').value = withdrawalId;
+    var rejectButtons = document.querySelectorAll('.reject-btn');
+    rejectButtons.forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            event.preventDefault(); // Prevent form submission
+            var reason = prompt("Please enter the reason for rejection:");
+            if (reason === null || reason.trim() === "") {
+                alert("A reason is required to reject the withdrawal.");
+                return;
+            }
+            // Set the reason in the hidden input and submit the form
+            var form = button.closest('.reject-form');
+            form.querySelector('.reject-reason').value = reason;
+            form.submit();
         });
     });
 });
