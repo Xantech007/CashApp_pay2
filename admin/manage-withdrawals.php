@@ -29,7 +29,6 @@ include('inc/navbar.php');
                             <th scope="col">Channel Name</th>
                             <th scope="col">Channel Number</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Reason</th>
                             <th scope="col">Date</th>
                             <th scope="col">Action</th>
                         </tr>
@@ -41,8 +40,8 @@ include('inc/navbar.php');
                         if (empty($_SESSION['csrf_token'])) {
                             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                         }
-                        // Query withdrawals table including reason
-                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, reason, created_at, email 
+                        // Query withdrawals table
+                        $query = "SELECT id, amount, channel, channel_name, channel_number, status, created_at, email 
                                   FROM withdrawals 
                                   WHERE status = '0'";
                         $query_run = mysqli_query($con, $query);
@@ -92,7 +91,6 @@ include('inc/navbar.php');
                                 }
                                 ?>
                             </td>
-                            <td><?= htmlspecialchars($data['reason'] ?? '-') ?></td>
                             <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                             <td>
                                 <form action="codes/withdrawals.php" method="POST" class="d-inline">
@@ -101,12 +99,11 @@ include('inc/navbar.php');
                                     <input type="hidden" name="status" value="1">
                                     <button type="submit" name="update_status" class="btn btn-success btn-sm">Completed</button>
                                 </form>
-                                <form action="codes/withdrawals.php" method="POST" class="d-inline reject-form">
+                                <form action="codes/withdrawals.php" method="POST" class="d-inline">
                                     <input type="hidden" name="withdrawal_id" value="<?= htmlspecialchars($data['id']) ?>">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                     <input type="hidden" name="status" value="2">
-                                    <input type="hidden" name="reason" class="reject-reason">
-                                    <button type="submit" name="update_status" class="btn btn-danger btn-sm reject-btn">Rejected</button>
+                                    <button type="submit" name="update_status" class="btn btn-danger btn-sm">Rejected</button>
                                 </form>
                             </td>
                         </tr>
@@ -115,7 +112,7 @@ include('inc/navbar.php');
                         } else {
                         ?>
                         <tr>
-                            <td colspan="8" class="text-center">No pending withdrawals found.</td>
+                            <td colspan="7" class="text-center">No pending withdrawals found.</td>
                         </tr>
                         <?php
                         }
@@ -128,27 +125,6 @@ include('inc/navbar.php');
         </div>
     </div>
 </main><!-- End #main -->
-
-<!-- JavaScript to Handle Rejection Reason Prompt -->
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var rejectButtons = document.querySelectorAll('.reject-btn');
-    rejectButtons.forEach(function (button) {
-        button.addEventListener('click', function (event) {
-            event.preventDefault(); // Prevent form submission
-            var reason = prompt("Please enter the reason for rejection:");
-            if (reason === null || reason.trim() === "") {
-                alert("A reason is required to reject the withdrawal.");
-                return;
-            }
-            // Set the reason in the hidden input and submit the form
-            var form = button.closest('.reject-form');
-            form.querySelector('.reject-reason').value = reason;
-            form.submit();
-        });
-    });
-});
-</script>
 
 <?php include('inc/footer.php'); ?>
 </html>
