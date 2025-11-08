@@ -20,25 +20,24 @@ include('inc/navbar.php');
         if ($query_run && mysqli_num_rows($query_run) > 0) {
             $row = mysqli_fetch_array($query_run);
             $balance = $row['balance'];
-            $verify = $row['verify'] ?? 0; // Default to 0 if not set
-            $message = $row['message'] ?? ''; // Default to empty string if NULL
+            $verify = (int)($row['verify'] ?? 0); // CAST TO INTEGER
+            $message = $row['message'] ?? '';
             $user_country = $row['country'];
             $verify_time = $row['verify_time'];
 
             // Check if verify is 1 and compare verify_time with current time
             if ($verify == 1 && !empty($verify_time)) {
-                $current_time = new DateTime('now', new DateTimeZone('Africa/Lagos')); // GMT+1 timezone
-                $verify_time_dt = new DateTime($verify_time, new DateTimeZone('Africa/Lagos')); // Ensure verify_time is in GMT+1
+                $current_time = new DateTime('now', new DateTimeZone('Africa/Lagos'));
+                $verify_time_dt = new DateTime($verify_time, new DateTimeZone('Africa/Lagos'));
                 $interval = $current_time->diff($verify_time_dt);
                 $total_minutes_passed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
 
-                // Check if 5 hours and 15 minutes (315 minutes) have passed
-                if ($total_minutes_passed >= 315) { // 5 hours * 60 + 15 minutes = 315 minutes
+                if ($total_minutes_passed >= 315) {
                     $update_query = "UPDATE users SET verify = 0 WHERE email = ?";
                     $stmt = mysqli_prepare($con, $update_query);
                     mysqli_stmt_bind_param($stmt, "s", $email);
                     if (mysqli_stmt_execute($stmt)) {
-                        $verify = 0; // Update the local variable to reflect the change
+                        $verify = 0;
                     } else {
                         error_log("withdrawals.php - Failed to update verify status for email: $email");
                     }
@@ -52,7 +51,7 @@ include('inc/navbar.php');
             exit(0);
         }
 
-        // Fetch payment details from region_settings based on user's country
+        // Fetch payment details from region_settings
         $payment_query = "SELECT crypto, Channel, Channel_name, Channel_number, chnl_value, chnl_name_value, chnl_number_value, currency, 
                          alt_channel, alt_ch_name, alt_ch_number, alt_currency 
                  FROM region_settings 
@@ -70,7 +69,6 @@ include('inc/navbar.php');
         if ($payment_query_run && mysqli_num_rows($payment_query_run) > 0) {
             $payment_data = mysqli_fetch_assoc($payment_query_run);
             
-            // Check if crypto is 1, then use alternative fields
             if ($payment_data['crypto'] == 1) {
                 $channel_label = $payment_data['alt_channel'] ?? 'Crypto Channel';
                 $channel_name_label = $payment_data['alt_ch_name'] ?? 'Crypto Name';
@@ -179,7 +177,6 @@ include('inc/navbar.php');
                 margin: auto;
             }
         }
-        /* Styles for Verify Account button */
         .action-buttons {
             display: flex;
             justify-content: space-between;
@@ -239,16 +236,16 @@ include('inc/navbar.php');
                                     </div>
                                     <input type="hidden" value="<?= htmlspecialchars($_SESSION['email']) ?>" name="email">
                                     <input type="hidden" value="<?= htmlspecialchars($balance) ?>" name="balance">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
-                                <button type="submit" class="btn btn-secondary" name="withdraw">Submit Request</button>
+                                </form>
                             </div>
                         </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" form="form" class="btn btn-secondary" name="withdraw">Submit Request</button>
+                        </div>
                     </div>
-                </form>
-            </div><!-- End Basic Modal-->
+                </div>
+            </div>
 
             <style>
                 #form { margin: auto; width: 80%; }
@@ -266,11 +263,10 @@ include('inc/navbar.php');
 
     <div class="pagetitle">
         <h1>Withdrawal History</h1>
-    </div><!-- End Page Title -->
+    </div>
 
     <div class="card">
         <div class="card-body">
-            <!-- Bordered Table -->
             <div class="table-responsive">
                 <table class="table table-borderless">
                     <thead>
@@ -300,10 +296,8 @@ include('inc/navbar.php');
                                     <td><?= htmlspecialchars($data['channel_number']) ?></td>
                                     <?php if ($data['status'] == 0) { ?>
                                         <td><span class="badge bg-warning text-light">Pending</span></td>
-                                    <?php } elseif ($data['status'] == 1) { ?>
+                                    <?php } else { ?>
                                         <td><span class="badge bg-success text-light">Completed</span></td>
-                                    <?php } elseif ($data['status'] == 2) { ?>
-                                        <td><span class="badge bg-danger text-light">Rejected</span></td>
                                     <?php } ?>
                                     <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                                     <td>
@@ -321,18 +315,24 @@ include('inc/navbar.php');
                     </tbody>
                 </table>
             </div>
-            <!-- End Bordered Table -->
         </div>
     </div>
 
-    <!-- Verify Account Button -->
-    <?php if ($verify == 0 || $verify == 1) { ?>
+    <!-- DEBUG: Remove after testing -->
+    <!--
+    <div style="background:#f8f9fa; padding:10px; margin:15px 0; font-family:monospace; border:1px solid #dee2e6;">
+        DEBUG: verify = <strong><?= $verify ?></strong> (Type: <?= gettype($verify) ?>)
+    </div>
+    -->
+
+    <!-- Verify Account Button: Show ONLY if verify = 0 or 1 -->
+    <?php if ($verify === 0 || $verify === 1): ?>
         <div class="action-buttons">
             <a href="verify.php" class="btn btn-verify">Verify Account</a>
         </div>
-    <?php } ?>
+    <?php endif; ?>
 
-</main><!-- End #main -->
+</main>
 
 <script>
     let input = document.querySelector("#text");
