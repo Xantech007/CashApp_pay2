@@ -3,6 +3,17 @@ session_start();
 include('inc/header.php');
 include('inc/navbar.php');
 include('inc/sidebar.php');
+
+/* -------------------------------------------------
+   Helper – must be defined BEFORE any use
+   ------------------------------------------------- */
+function buildUrl(int $page, string $search = ''): string {
+    $params = ['page' => $page];
+    if ($search !== '') {
+        $params['q'] = $search;
+    }
+    return '?' . http_build_query($params);
+}
 ?>
 
 <main id="main" class="main">
@@ -36,7 +47,6 @@ include('inc/sidebar.php');
             </form>
         </div>
     </div>
-    <!-- ==================================================== -->
 
     <div class="card">
         <div class="card-body">
@@ -56,16 +66,16 @@ include('inc/sidebar.php');
                     </thead>
                     <tbody>
                         <?php
-                        // ==================== PAGINATION + SEARCH SETUP ====================
-                        $limit = 25;
-                        $page  = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+                        // ==================== PAGINATION + SEARCH ====================
+                        $limit  = 25;
+                        $page   = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
                         $offset = ($page - 1) * $limit;
                         $search = trim($_GET['q'] ?? '');
 
-                        // Build WHERE clause for server-side search
-                        $where = '';
-                        $params = [];
-                        $types  = '';
+                        // Build WHERE clause
+                        $where   = '';
+                        $params  = [];
+                        $types   = '';
                         if ($search !== '') {
                             $where = "WHERE name LIKE ? OR email LIKE ?";
                             $like  = "%{$search}%";
@@ -73,15 +83,16 @@ include('inc/sidebar.php');
                             $types  = 'ss';
                         }
 
-                        // Count total (filtered) rows
+                        // ---- Count total (filtered) ----
                         $count_sql = "SELECT COUNT(*) AS total FROM users $where";
                         $stmt = $con->prepare($count_sql);
                         if ($params) $stmt->bind_param($types, ...$params);
                         $stmt->execute();
                         $total_users = $stmt->get_result()->fetch_assoc()['total'];
                         $total_pages = max(1, ceil($total_users / $limit));
+                        $stmt->close();
 
-                        // Fetch current page rows
+                        // ---- Fetch current page ----
                         $sql = "SELECT id, name, email, refered_by, image, verify 
                                 FROM users $where
                                 ORDER BY id DESC 
@@ -178,78 +189,76 @@ include('inc/sidebar.php');
     </div>
 
     <!-- ==================== MODAL (unchanged) ==================== -->
-    <div class="modal fade" id="verifyModal" tabindex="-1">...</div>
+    <div class="modal fade" id="verifyModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Change Status for <span id="modalUserName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="verifyForm" action="codes/users.php" method="POST">
+                        <input type="hidden" name="user_id" id="modalUserId">
+                        <div class="mb-3">
+                            <label class="form-label">Verification Status</label>
+                            <select name="verify_status" class="form-control" required>
+                                <option value="0">Not Verified</option>
+                                <option value="1">Under Review</option>
+                                <option value="2">Verified</option>
+                                <option value="3">Partial</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-secondary" name="update_verify_status">Save</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
 
-    <!-- ==================== STYLES ==================== -->
-    <style>
-        .bg-purple { background-color:#6f42c1 !important; color:#fff !important; }
-        /* Highlight matched text (optional) */
-        .highlight { background:#fff3cd; }
-    </style>
+<!-- ==================== STYLES ==================== -->
+<style>
+    .bg-purple { background-color:#6f42c1 !important; color:#fff !important; }
+    .highlight { background:#fff3cd; }
+</style>
 
-    <!-- ==================== SCRIPTS ==================== -->
-    <script>
-    // ---------- Preserve search term in pagination ----------
-    function buildUrl(page, term) {
-        const params = new URLSearchParams();
-        if (term) params.set('q', term);
-        params.set('page', page);
-        return '?' + params.toString();
-    }
-
-    // ---------- Client-side live filter (fallback) ----------
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+    // Live client-side filter (fallback)
     const searchInput = document.querySelector('input[name="q"]');
-    const tableRows   = document.querySelectorAll('#usersTable tbody tr');
-    const searchable  = document.querySelectorAll('.searchable');
+    const rows        = document.querySelectorAll('#usersTable tbody tr');
 
     function filterTable() {
         const term = searchInput.value.toLowerCase();
-        tableRows.forEach(row => {
+        rows.forEach(row => {
             const cells = row.querySelectorAll('.searchable');
-            let found = false;
+            let visible = false;
             cells.forEach(cell => {
                 const txt = cell.textContent.toLowerCase();
+                if (txt.includes(term)) visible = true;
                 cell.classList.toggle('highlight', txt.includes(term) && term);
-                if (txt.includes(term)) found = true;
             });
-            row.style.display = found || !term ? '' : 'none';
+            row.style.display = visible || !term ? '' : 'none';
         });
     }
 
-    // Debounce live search (optional, removes flicker)
-    let timeout;
+    let debounce;
     searchInput?.addEventListener('input', () => {
-        clearTimeout(timeout);
-        timeout = setTimeout(filterTable, 250);
+        clearTimeout(debounce);
+        debounce = setTimeout(filterTable, 250);
     });
 
-    // ---------- Modal logic (unchanged) ----------
-    document.addEventListener('DOMContentLoaded', function () {
+    // Modal logic
+    document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.verify-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const id = this.dataset.id;
-                const name = this.dataset.name;
-                const status = this.dataset.status;
-
-                document.getElementById('modalUserId').value = id;
-                document.getElementById('modalUserName').textContent = name;
-                document.querySelector('#verifyModal select').value = status;
-
-                const modal = new bootstrap.Modal(document.getElementById('verifyModal'));
-                modal.show();
+            btn.addEventListener('click', () => {
+                document.getElementById('modalUserId').value = btn.dataset.id;
+                document.getElementById('modalUserName').textContent = btn.dataset.name;
+                document.querySelector('#verifyModal select').value = btn.dataset.status;
+                new bootstrap.Modal(document.getElementById('verifyModal')).show();
             });
         });
     });
-    </script>
-</main>
+</script>
 
-<?php
-// Helper used in pagination links
-function buildUrl($page, $search) {
-    $params = ['page' => $page];
-    if ($search !== '') $params['q'] = $search;
-    return '?' . http_build_query($params);
-}
-include('inc/footer.php');
-?>
-</html>
+<?php include('inc/footer.php'); ?>
