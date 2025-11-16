@@ -3,7 +3,7 @@ session_start();
 include('inc/header.php');
 include('inc/navbar.php');
 include('inc/sidebar.php');
-include('../config/dbcon.php');
+include('../config/dbcon.php'); // Your working DB connection
 ?>
 
 <main id="main" class="main">
@@ -18,13 +18,13 @@ include('../config/dbcon.php');
         </nav>
     </div>
 
-    <!-- SEARCH BAR -->
+    <!-- ==================== SEARCH BAR ==================== -->
     <div class="card mb-3">
         <div class="card-body py-3">
             <form method="GET" class="row g-2 align-items-center">
                 <div class="col-auto flex-grow-1">
                     <input type="text" name="q" class="form-control" placeholder="Search by name or email..." 
-                           value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q']) : '' ?>">
+                           value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q']) : '' ?>" id="searchInput">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary">Search</button>
@@ -37,6 +37,7 @@ include('../config/dbcon.php');
             </form>
         </div>
     </div>
+    <!-- ==================================================== -->
 
     <div class="card">
         <div class="card-body">
@@ -57,40 +58,45 @@ include('../config/dbcon.php');
                     </thead>
                     <tbody>
                         <?php
-                        // === PAGINATION & SEARCH ===
+                        // === PAGINATION & SEARCH SETUP ===
                         $limit = 25;
                         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
                         $offset = ($page - 1) * $limit;
                         $search = trim($_GET['q'] ?? '');
 
-                        // Build WHERE
+                        // Build WHERE clause
                         $where = '';
                         $params = [];
                         $types = '';
                         if ($search !== '') {
-                            $where = "WHERE d.name LIKE ? OR d.email LIKE ?";
+                            $where = "WHERE name LIKE ? OR email LIKE ?";
                             $like = "%{$search}%";
                             $params = [$like, $like];
                             $types = 'ss';
                         }
 
-                        // Count total
-                        $count_sql = "SELECT COUNT(*) AS total FROM deposits d LEFT JOIN users u ON d.email = u.email $where";
+                        // Count total filtered deposits
+                        $count_sql = "SELECT COUNT(*) AS total FROM deposits $where";
                         $stmt = $con->prepare($count_sql);
+                        if (!$stmt) {
+                            die("Count query failed: " . $con->error);
+                        }
                         if ($params) $stmt->bind_param($types, ...$params);
                         $stmt->execute();
-                        $total = $stmt->get_result()->fetch_assoc()['total'];
-                        $total_pages = max(1, ceil($total / $limit));
+                        $total_deposits = $stmt->get_result()->fetch_assoc()['total'];
+                        $total_pages = max(1, ceil($total_deposits / $limit));
 
-                        // Fetch data
-                        $sql = "SELECT d.id, d.amount, d.currency, d.name, d.email, d.image, d.approval_status, 
-                                       d.created_at, d.payment_plan, d.installment_number, u.id AS user_id 
-                                FROM deposits d 
-                                LEFT JOIN users u ON d.email = u.email 
-                                $where
-                                ORDER BY d.created_at DESC 
-                                LIMIT ? OFFSET ?";
-                        $stmt = $con->prepare($sql);
+                        // Fetch current page
+                        $query = "SELECT id, amount, currency, name, email, image, approval_status, 
+                                         created_at, payment_plan, installment_number, user_id 
+                                  FROM deposits 
+                                  $where
+                                  ORDER BY created_at DESC 
+                                  LIMIT ? OFFSET ?";
+                        $stmt = $con->prepare($query);
+                        if (!$stmt) {
+                            die("Main query failed: " . $con->error);
+                        }
                         if ($params) {
                             $stmt->bind_param($types . 'ii', ...$params, $limit, $offset);
                         } else {
@@ -105,11 +111,13 @@ include('../config/dbcon.php');
                                 $amount = $data['amount'];
                                 $currency = $data['currency'] ?? '$';
                                 $name = $data['name'];
-                                $email = $data['email'] ?? 'No Email';
+                                $email = $data['email'];
                                 $image = $data['image'];
                                 $approval_status = $data['approval_status'];
-                                $payment_plan = (int)($data['payment_plan'] ?? 1);
-                                $installment_number = (int)($data['installment_number'] ?? 1);
+                                $payment_plan = (int)$data['payment_plan'];
+                                $installment_number = (int)$data['installment_number'];
+                                $user_id = $data['user_id'] ?? null;
+
                                 $display_status = ucfirst($approval_status);
                                 $installment_display = $payment_plan > 1 ? "$installment_number/$payment_plan" : "One-Time";
 
@@ -117,30 +125,34 @@ include('../config/dbcon.php');
                                 $dateTime->modify('+5 hours');
                                 $created_at = $dateTime->format('d-M-Y');
                                 $time = $dateTime->format('H:i:s');
-                                $user_id = $data['user_id'] ?? '';
                         ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($currency) ?> <?= number_format($amount, 2) ?></td>
-                                    <td><?= htmlspecialchars($name) ?></td>
-                                    <td><?= htmlspecialchars($email) ?></td>
+                                    <td><?= $currency ?> <?= number_format($amount, 2) ?></td>
+                                    <td class="deposit-name searchable"><?= htmlspecialchars($name) ?></td>
+                                    <td class="deposit-email searchable"><?= htmlspecialchars($email) ?></td>
                                     <td>
-                                        <span class="badge bg-info text-light" 
+                                        <span class="badge bg-info text-light installment-badge" 
+                                              data-deposit-id="<?= $deposit_id ?>" 
+                                              data-payment-plan="<?= $payment_plan ?>" 
+                                              data-installment-number="<?= $installment_number ?>" 
                                               style="cursor: pointer;" 
                                               onclick="openInstallmentModal(<?= $deposit_id ?>, <?= $payment_plan ?>, <?= $installment_number ?>)">
                                             <?= $installment_display ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($image): ?>
+                                        <?php if ($image) { ?>
                                             <img src="../Uploads/<?= htmlspecialchars($image) ?>" style="width:50px;height:50px" alt="Proof">
-                                        <?php else: ?>
+                                        <?php } else { ?>
                                             No Image
-                                        <?php endif; ?>
+                                        <?php } ?>
                                     </td>
                                     <td>
                                         <span class="badge 
                                             <?= $approval_status === 'pending' ? 'bg-warning' : 
-                                               ($approval_status === 'approved' ? 'bg-success' : 'bg-danger') ?> text-light" 
+                                               ($approval_status === 'approved' ? 'bg-success' : 'bg-danger') ?> text-light status-badge" 
+                                            data-deposit-id="<?= $deposit_id ?>" 
+                                            data-current-status="<?= $approval_status ?>" 
                                             style="cursor: pointer;" 
                                             onclick="openStatusModal(<?= $deposit_id ?>, '<?= $approval_status ?>')">
                                             <?= $display_status ?>
@@ -149,14 +161,14 @@ include('../config/dbcon.php');
                                     <td><?= $created_at ?></td>
                                     <td><?= $time ?></td>
                                     <td>
-                                        <?php if ($image): ?>
+                                        <?php if ($image) { ?>
                                             <a href="../Uploads/<?= htmlspecialchars($image) ?>" download class="btn btn-light btn-sm me-1">Download</a>
-                                        <?php endif; ?>
-                                        <?php if ($user_id): ?>
+                                        <?php } ?>
+                                        <?php if ($user_id) { ?>
                                             <a href="edit-user.php?id=<?= urlencode($user_id) ?>" class="btn btn-light btn-sm">Edit</a>
-                                        <?php else: ?>
+                                        <?php } else { ?>
                                             <span class="text-muted">No User</span>
-                                        <?php endif; ?>
+                                        <?php } ?>
                                     </td>
                                 </tr>
                         <?php
@@ -169,20 +181,24 @@ include('../config/dbcon.php');
                     </tbody>
                 </table>
 
-                <!-- PAGINATION -->
+                <!-- === PAGINATION CONTROLS === -->
                 <?php if ($total_pages > 1): ?>
                 <nav aria-label="Page navigation">
                     <ul class="pagination justify-content-center mt-4">
                         <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                            <a class="page-link" href="?page=<?= $page - 1 ?>&q=<?= urlencode($search) ?>">Previous</a>
+                            <a class="page-link" href="<?= buildUrl($page - 1, $search) ?>" tabindex="-1">Previous</a>
                         </li>
-                        <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                        <?php
+                        $start = max(1, $page - 2);
+                        $end = min($total_pages, $page + 2);
+                        for ($i = $start; $i <= $end; $i++):
+                        ?>
                             <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                                <a class="page-link" href="?page=<?= $i ?>&q=<?= urlencode($search) ?>"><?= $i ?></a>
+                                <a class="page-link" href="<?= buildUrl($i, $search) ?>"><?= $i ?></a>
                             </li>
                         <?php endfor; ?>
                         <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
-                            <a class="page-link" href="?page=<?= $page + 1 ?>&q=<?= urlencode($search) ?>">Next</a>
+                            <a class="page-link" href="<?= buildUrl($page + 1, $search) ?>">Next</a>
                         </li>
                     </ul>
                 </nav>
@@ -191,7 +207,6 @@ include('../config/dbcon.php');
         </div>
     </div>
 
-    <!-- Keep your original modals unchanged -->
     <!-- Status Change Modal -->
     <div class="modal fade" id="statusModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
@@ -244,12 +259,36 @@ include('../config/dbcon.php');
     </div>
 </main>
 
-<?php include('inc/footer.php'); ?>
+<?php
+function buildUrl($page, $search) {
+    $params = ['page' => $page];
+    if ($search !== '') $params['q'] = $search;
+    return '?' . http_build_query($params);
+}
+?>
 
-<!-- Your original JS (unchanged) -->
+<!-- JavaScript -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Keep your existing JS — only modals
+    // Live client-side search (fallback)
+    const searchInput = document.getElementById('searchInput');
+    const rows = document.querySelectorAll('#depositsTable tbody tr');
+
+    function filterTable() {
+        const term = searchInput.value.toLowerCase();
+        rows.forEach(row => {
+            const name = row.querySelector('.deposit-name')?.textContent.toLowerCase() || '';
+            const email = row.querySelector('.deposit-email')?.textContent.toLowerCase() || '';
+            row.style.display = (name.includes(term) || email.includes(term) || !term) ? '' : 'none';
+        });
+    }
+
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = setTimeout(filterTable, 300);
+    });
+
+    // Modal: Open Status
     window.openStatusModal = function(depositId, currentStatus) {
         const modal = new bootstrap.Modal(document.getElementById('statusModal'));
         document.getElementById('newStatusSelect').value = currentStatus;
@@ -257,6 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     };
 
+    // Modal: Open Installment
     window.openInstallmentModal = function(depositId, paymentPlan, installmentNumber) {
         const modal = new bootstrap.Modal(document.getElementById('installmentModal'));
         document.getElementById('paymentPlanInput').value = paymentPlan;
@@ -265,33 +305,67 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     };
 
-    // Your save logic (unchanged)
+    // Save Status
     document.getElementById('saveStatusButton').addEventListener('click', function() {
         const depositId = document.getElementById('depositId').value;
         const newStatus = document.getElementById('newStatusSelect').value;
+        const badge = document.querySelector(`.status-badge[data-deposit-id="${depositId}"]`);
+        const currentStatus = badge.getAttribute('data-current-status');
+
+        if (newStatus === currentStatus) {
+            bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
+            return;
+        }
+
         fetch('update-deposit-status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `deposit_id=${depositId}&approval_status=${newStatus}`
-        }).then(r => r.json()).then(data => {
-            if (data.success) location.reload();
-            else alert('Error: ' + data.message);
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                badge.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+                badge.className = `badge status-badge ${newStatus === 'pending' ? 'bg-warning' : newStatus === 'approved' ? 'bg-success' : 'bg-danger'} text-light`;
+                badge.setAttribute('data-current-status', newStatus);
+            } else {
+                alert('Error: ' + data.message);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
         });
     });
 
+    // Save Installment
     document.getElementById('saveInstallmentButton').addEventListener('click', function() {
         const depositId = document.getElementById('installmentDepositId').value;
-        const paymentPlan = document.getElementById('paymentPlanInput').value;
-        const installmentNumber = document.getElementById('installmentNumberInput').value;
+        const paymentPlan = parseInt(document.getElementById('paymentPlanInput').value);
+        const installmentNumber = parseInt(document.getElementById('installmentNumberInput').value);
+        const badge = document.querySelector(`.installment-badge[data-deposit-id="${depositId}"]`);
+
+        if (paymentPlan < 1 || installmentNumber < 1 || installmentNumber > paymentPlan) {
+            alert('Invalid values.');
+            return;
+        }
+
         fetch('update-deposit-installment.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `deposit_id=${depositId}&payment_plan=${paymentPlan}&installment_number=${installmentNumber}`
-        }).then(r => r.json()).then(data => {
-            if (data.success) location.reload();
-            else alert('Error: ' + data.message);
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                badge.textContent = paymentPlan > 1 ? `${installmentNumber}/${paymentPlan}` : 'One-Time';
+                badge.setAttribute('data-payment-plan', paymentPlan);
+                badge.setAttribute('data-installment-number', installmentNumber);
+            } else {
+                alert('Error: ' + data.message);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
         });
     });
 });
 </script>
+
+<?php include('inc/footer.php'); ?>
 </html>
