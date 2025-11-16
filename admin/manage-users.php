@@ -3,17 +3,6 @@ session_start();
 include('inc/header.php');
 include('inc/navbar.php');
 include('inc/sidebar.php');
-
-/* -------------------------------------------------
-   Helper – must be defined BEFORE any use
-   ------------------------------------------------- */
-function buildUrl(int $page, string $search = ''): string {
-    $params = ['page' => $page];
-    if ($search !== '') {
-        $params['q'] = $search;
-    }
-    return '?' . http_build_query($params);
-}
 ?>
 
 <main id="main" class="main">
@@ -28,12 +17,12 @@ function buildUrl(int $page, string $search = ''): string {
         </nav>
     </div>
 
-    <!-- ==================== SEARCH BAR ==================== -->
+    <!-- ==================== SEARCH BAR ONLY ==================== -->
     <div class="card mb-3">
         <div class="card-body py-3">
             <form method="GET" class="row g-2 align-items-center">
                 <div class="col-auto flex-grow-1">
-                    <input type="text" name="q" class="form-control" placeholder="Search by name or email..."
+                    <input type="text" name="q" class="form-control" placeholder="Search by name or email..." 
                            value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q']) : '' ?>">
                 </div>
                 <div class="col-auto">
@@ -47,11 +36,12 @@ function buildUrl(int $page, string $search = ''): string {
             </form>
         </div>
     </div>
+    <!-- ==================================================== -->
 
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-borderless" id="usersTable">
+                <table class="table table-borderless">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -66,47 +56,28 @@ function buildUrl(int $page, string $search = ''): string {
                     </thead>
                     <tbody>
                         <?php
-                        // ==================== PAGINATION + SEARCH ====================
-                        $limit  = 25;
-                        $page   = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+                        // === PAGINATION SETUP ===
+                        $limit = 25;
+                        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
                         $offset = ($page - 1) * $limit;
-                        $search = trim($_GET['q'] ?? '');
 
-                        // Build WHERE clause
-                        $where   = '';
-                        $params  = [];
-                        $types   = '';
-                        if ($search !== '') {
-                            $where = "WHERE name LIKE ? OR email LIKE ?";
-                            $like  = "%{$search}%";
-                            $params = [$like, $like];
-                            $types  = 'ss';
-                        }
+                        // Count total users
+                        $count_query = "SELECT COUNT(*) as total FROM users";
+                        $count_result = mysqli_query($con, $count_query);
+                        $total_users = mysqli_fetch_assoc($count_result)['total'];
+                        $total_pages = ceil($total_users / $limit);
 
-                        // ---- Count total (filtered) ----
-                        $count_sql = "SELECT COUNT(*) AS total FROM users $where";
-                        $stmt = $con->prepare($count_sql);
-                        if ($params) $stmt->bind_param($types, ...$params);
-                        $stmt->execute();
-                        $total_users = $stmt->get_result()->fetch_assoc()['total'];
-                        $total_pages = max(1, ceil($total_users / $limit));
-                        $stmt->close();
-
-                        // ---- Fetch current page ----
-                        $sql = "SELECT id, name, email, refered_by, image, verify 
-                                FROM users $where
-                                ORDER BY id DESC 
-                                LIMIT ? OFFSET ?";
-                        $stmt = $con->prepare($sql);
-                        if ($params) {
-                            $stmt->bind_param($types . 'ii', ...$params, $limit, $offset);
-                        } else {
-                            $stmt->bind_param('ii', $limit, $offset);
-                        }
+                        // Fetch users for current page
+                        $query = "SELECT id, name, email, refered_by, image, verify 
+                                  FROM users 
+                                  ORDER BY id DESC 
+                                  LIMIT ? OFFSET ?";
+                        $stmt = $con->prepare($query);
+                        $stmt->bind_param("ii", $limit, $offset);
                         $stmt->execute();
                         $query_run = $stmt->get_result();
 
-                        if ($query_run->num_rows > 0) {
+                        if (mysqli_num_rows($query_run) > 0) {
                             foreach ($query_run as $data) {
                                 $verify_status = match ((int)$data['verify']) {
                                     0 => 'Not Verified',
@@ -125,8 +96,8 @@ function buildUrl(int $page, string $search = ''): string {
                         ?>
                                 <tr>
                                     <td><?= $data['id'] ?></td>
-                                    <td class="searchable"><?= htmlspecialchars($data['name']) ?></td>
-                                    <td class="searchable"><?= htmlspecialchars($data['email']) ?></td>
+                                    <td><?= htmlspecialchars($data['name']) ?></td>
+                                    <td><?= htmlspecialchars($data['email']) ?></td>
                                     <td><?= htmlspecialchars($data['refered_by'] ?? '-') ?></td>
                                     <td>
                                         <img src="../Uploads/profile-picture/<?= htmlspecialchars($data['image']) ?>"
@@ -162,24 +133,24 @@ function buildUrl(int $page, string $search = ''): string {
                     </tbody>
                 </table>
 
-                <!-- ==================== PAGINATION ==================== -->
+                <!-- === PAGINATION CONTROLS === -->
                 <?php if ($total_pages > 1): ?>
                 <nav aria-label="Page navigation">
                     <ul class="pagination justify-content-center mt-4">
                         <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                            <a class="page-link" href="<?= buildUrl($page - 1, $search) ?>" tabindex="-1">Previous</a>
+                            <a class="page-link" href="?page=<?= $page - 1 ?>" tabindex="-1">Previous</a>
                         </li>
                         <?php
                         $start = max(1, $page - 2);
-                        $end   = min($total_pages, $page + 2);
+                        $end = min($total_pages, $page + 2);
                         for ($i = $start; $i <= $end; $i++):
                         ?>
                             <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                                <a class="page-link" href="<?= buildUrl($i, $search) ?>"><?= $i ?></a>
+                                <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
                             </li>
                         <?php endfor; ?>
                         <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
-                            <a class="page-link" href="<?= buildUrl($page + 1, $search) ?>">Next</a>
+                            <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
                         </li>
                     </ul>
                 </nav>
@@ -188,7 +159,7 @@ function buildUrl(int $page, string $search = ''): string {
         </div>
     </div>
 
-    <!-- ==================== MODAL (unchanged) ==================== -->
+    <!-- === SINGLE SHARED MODAL === -->
     <div class="modal fade" id="verifyModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -216,49 +187,33 @@ function buildUrl(int $page, string $search = ''): string {
     </div>
 </main>
 
-<!-- ==================== STYLES ==================== -->
+<!-- Custom Purple Badge -->
 <style>
-    .bg-purple { background-color:#6f42c1 !important; color:#fff !important; }
-    .highlight { background:#fff3cd; }
+    .bg-purple {
+        background-color: #6f42c1 !important;
+        color: white !important;
+    }
 </style>
 
-<!-- ==================== SCRIPTS ==================== -->
+<!-- Modal JavaScript -->
 <script>
-    // Live client-side filter (fallback)
-    const searchInput = document.querySelector('input[name="q"]');
-    const rows        = document.querySelectorAll('#usersTable tbody tr');
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.verify-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            const name = this.dataset.name;
+            const status = this.dataset.status;
 
-    function filterTable() {
-        const term = searchInput.value.toLowerCase();
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('.searchable');
-            let visible = false;
-            cells.forEach(cell => {
-                const txt = cell.textContent.toLowerCase();
-                if (txt.includes(term)) visible = true;
-                cell.classList.toggle('highlight', txt.includes(term) && term);
-            });
-            row.style.display = visible || !term ? '' : 'none';
-        });
-    }
+            document.getElementById('modalUserId').value = id;
+            document.getElementById('modalUserName').textContent = name;
+            document.querySelector('#verifyModal select').value = status;
 
-    let debounce;
-    searchInput?.addEventListener('input', () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(filterTable, 250);
-    });
-
-    // Modal logic
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.verify-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.getElementById('modalUserId').value = btn.dataset.id;
-                document.getElementById('modalUserName').textContent = btn.dataset.name;
-                document.querySelector('#verifyModal select').value = btn.dataset.status;
-                new bootstrap.Modal(document.getElementById('verifyModal')).show();
-            });
+            const modal = new bootstrap.Modal(document.getElementById('verifyModal'));
+            modal.show();
         });
     });
+});
 </script>
 
 <?php include('inc/footer.php'); ?>
+</html>
