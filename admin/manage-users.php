@@ -5,10 +5,10 @@ include('inc/navbar.php');
 include('inc/sidebar.php');
 ?>
 
-<!-- Custom CSS for Purple Badge -->
+<!-- Custom Purple Badge -->
 <style>
     .bg-purple {
-        background-color: #6f42c1 !important; /* Bootstrap-like purple */
+        background-color: #6f42c1 !important;
         color: white !important;
     }
 </style>
@@ -23,7 +23,7 @@ include('inc/sidebar.php');
                 <li class="breadcrumb-item active">Manage Users</li>
             </ol>
         </nav>
-    </div><!-- End Page Title -->
+    </div>
 
     <div class="card">
         <div class="card-body">
@@ -32,29 +32,28 @@ include('inc/sidebar.php');
                 <input type="text" id="searchInput" class="form-control" placeholder="Search by name or email..." style="max-width: 400px;">
             </div>
 
-            <!-- Bordered Table -->
             <div class="table-responsive">
                 <table class="table table-borderless" id="usersTable">
                     <thead>
                         <tr>
-                            <th scope="col">ID</th>
-                            <th scope="col">Name</th>
-                            <th scope="col">Email</th>
-                            <th scope="col">Referred By</th>
-                            <th scope="col">Profile Picture</th>
-                            <th scope="col">Verification Status</th>
-                            <th scope="col">Edit</th>
-                            <th scope="col">Delete</th>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Referred By</th>
+                            <th>Profile Picture</th>
+                            <th>Verification Status</th>
+                            <th>Edit</th>
+                            <th>Delete</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $query = "SELECT * FROM users";
+                        // Sort by highest ID first (newest users on top)
+                        $query = "SELECT * FROM users ORDER BY id DESC";
                         $query_run = mysqli_query($con, $query);
 
                         if (mysqli_num_rows($query_run) > 0) {
                             foreach ($query_run as $data) {
-                                // Determine status text
                                 $verify_status = match ((int)$data['verify']) {
                                     0 => 'Not Verified',
                                     1 => 'Under Review',
@@ -63,12 +62,11 @@ include('inc/sidebar.php');
                                     default => 'Not Verified'
                                 };
 
-                                // Determine badge color
                                 $verify_badge_class = match ((int)$data['verify']) {
                                     0, null => 'bg-danger',
                                     1 => 'bg-warning text-dark',
                                     2 => 'bg-success',
-                                    3 => 'bg-purple',           // Purple for Partial
+                                    3 => 'bg-purple',
                                     default => 'bg-danger'
                                 };
                         ?>
@@ -98,7 +96,7 @@ include('inc/sidebar.php');
                                                 <div class="modal-content">
                                                     <div class="modal-header">
                                                         <h5 class="modal-title">
-                                                            Change Verification Status for <?= htmlspecialchars($data['name']) ?>
+                                                            Change Verification Status - <?= htmlspecialchars($data['name']) ?>
                                                         </h5>
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                     </div>
@@ -128,10 +126,10 @@ include('inc/sidebar.php');
                                     </td>
                                     <td>
                                         <form action="codes/users.php" method="POST" style="display:inline;">
-                                            <input type="hidden" name="profile_pic" value="<?= htmlspecialchars($data['image']) ?>">
+                                            <input type="hidden" name="profile_pic" value="<?= htmlspecialchars($data['image'] ?? '') ?>">
                                             <button type="submit" name="delete_user" value="<?= $data['id'] ?>" 
                                                     class="btn btn-outline-danger btn-sm"
-                                                    onclick="return confirm('Are you sure you want to delete this user?')">
+                                                    onclick="return confirm('Delete this user permanently?')">
                                                 Delete
                                             </button>
                                         </form>
@@ -140,7 +138,7 @@ include('inc/sidebar.php');
                         <?php
                             }
                         } else {
-                            echo '<tr><td colspan="8" class="text-center">No users found.</td></tr>';
+                            echo '<tr><td colspan="8" class="text-center text-muted">No users found.</td></tr>';
                         }
                         ?>
                     </tbody>
@@ -152,21 +150,14 @@ include('inc/sidebar.php');
 
 <?php include('inc/footer.php'); ?>
 
-<!-- Real-time Search Script -->
+<!-- Live Search -->
 <script>
     document.getElementById('searchInput').addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const rows = document.querySelectorAll('#usersTable tbody tr');
-
-        rows.forEach(row => {
+        const term = this.value.toLowerCase();
+        document.querySelectorAll('#usersTable tbody tr').forEach(row => {
             const name = row.querySelector('.user-name')?.textContent.toLowerCase() || '';
             const email = row.querySelector('.user-email')?.textContent.toLowerCase() || '';
-
-            if (name.includes(searchTerm) || email.includes(searchTerm)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
+            row.style.display = (name.includes(term) || email.includes(term)) ? '' : 'none';
         });
     });
 </script>
