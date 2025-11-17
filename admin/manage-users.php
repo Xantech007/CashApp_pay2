@@ -17,27 +17,6 @@ include('inc/sidebar.php');
         </nav>
     </div>
 
-    <!-- ==================== SEARCH BAR ONLY ==================== -->
-    <div class="card mb-3">
-        <div class="card-body py-3">
-            <form method="GET" class="row g-2 align-items-center">
-                <div class="col-auto flex-grow-1">
-                    <input type="text" name="q" class="form-control" placeholder="Search by name or email..." 
-                           value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q']) : '' ?>">
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary">Search</button>
-                </div>
-                <?php if (!empty($_GET['q'])): ?>
-                <div class="col-auto">
-                    <a href="?" class="btn btn-outline-secondary">Clear</a>
-                </div>
-                <?php endif; ?>
-            </form>
-        </div>
-    </div>
-    <!-- ==================================================== -->
-
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
