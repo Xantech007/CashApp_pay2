@@ -50,6 +50,7 @@ include('inc/sidebar.php');
                                     0 => 'Not Verified',
                                     1 => 'Under Review',
                                     2 => 'Verified',
+                                    3 => 'Partial',
                                     default => 'Not Verified'
                                 };
                                 $verify_badge_class = match ((int)$data['verify']) {
@@ -93,6 +94,7 @@ include('inc/sidebar.php');
                                                                     <option value="0" <?= ((int)$data['verify'] === 0 || is_null($data['verify'])) ? 'selected' : '' ?>>Not Verified</option>
                                                                     <option value="1" <?= (int)$data['verify'] === 1 ? 'selected' : '' ?>>Under Review</option>
                                                                     <option value="2" <?= (int)$data['verify'] === 2 ? 'selected' : '' ?>>Verified</option>
+                                                                    <option value="3" <?= (int)$data['verify'] === 3 ? 'selected' : '' ?>>Partial</option>
                                                                 </select>
                                                             </div>
                                                             <button type="submit" class="btn btn-secondary" name="update_verify_status">Save Changes</button>
