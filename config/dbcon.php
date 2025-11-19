@@ -1,7 +1,7 @@
 <?php
 //connection to mysql database
 
-$host = "sql100.infinityfree.com";  //database host
+$host = "sql210.infinityfree.com";  //database host
 $username = "if0_40199478";  //database user
 $password = "uR8pb2DxIhn";    //database password
 $database = "if0_40199478_pay2";  //database name
