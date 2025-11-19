@@ -3,8 +3,9 @@ session_start();
 include('inc/header.php');
 include('inc/navbar.php');
 include('inc/sidebar.php');
-include('../config/dbcon.php'); // Include database connection
+include('../config/dbcon.php');
 ?>
+
 <main id="main" class="main">
     <div class="pagetitle">
         <h1>Manage Deposits</h1>
@@ -15,154 +16,149 @@ include('../config/dbcon.php'); // Include database connection
                 <li class="breadcrumb-item active">Manage Deposits</li>
             </ol>
         </nav>
-    </div><!-- End Page Title -->
+    </div>
 
     <div class="card">
         <div class="card-body">
+            <!-- Date Filter -->
+            <div class="row align-items-center mt-4 mb-3">
+                <div class="col-md-4">
+                    <form method="GET" id="dateForm">
+                        <div class="input-group">
+                            <span class="input-group-text">Filter by Date</span>
+                            <input type="date" name="date" class="form-control" 
+                                   value="<?= htmlspecialchars($_GET['date'] ?? date('Y-m-d')) ?>" 
+                                   onchange="this.form.submit()">
+                            <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='manage-deposits.php'">
+                                Today
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-8 text-end">
+                    <small class="text-muted">
+                        Showing deposits for: 
+                        <strong>
+                            <?= $_GET['date'] ?? 'Today (' . date('d M Y') . ')' ?>
+                        </strong>
+                    </small>
+                </div>
+            </div>
+
             <!-- Search Bar -->
-            <div class="mb-3 mt-4">
+            <div class="mb-3">
                 <input type="text" id="searchInput" class="form-control" placeholder="Search by name or email..." style="max-width: 400px;">
             </div>
 
-            <!-- Bordered Table -->
             <div class="table-responsive">
                 <table class="table table-borderless" id="depositsTable">
                     <thead>
                         <tr>
-                            <th scope="col">Amount</th>
-                            <th scope="col">Name</th>
-                            <th scope="col">Email</th>
-                            <th scope="col">Installment</th>
-                            <th scope="col">Payment Proof</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Date</th>
-                            <th scope="col">Time</th>
-                            <th scope="col">Actions</th>
+                            <th>Amount</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Installment</th>
+                            <th>Payment Proof</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
+                        // Determine selected date (default: today)
+                        $selected_date = $_GET['date'] ?? date('Y-m-d');
+                        $selected_date = date('Y-m-d', strtotime($selected_date)); // sanitize
+
+                        // Query only deposits from the selected date (adjusted +5 hours)
                         $query = "SELECT d.id, d.amount, d.currency, d.name, d.email, d.image, d.approval_status, 
                                          d.created_at, d.payment_plan, d.installment_number, u.id AS user_id
                                   FROM deposits d
                                   LEFT JOIN users u ON d.email = u.email
+                                  WHERE DATE(DATE_ADD(d.created_at, INTERVAL 5 HOUR)) = ?
                                   ORDER BY d.created_at DESC";
 
-                        $query_run = mysqli_query($con, $query);
+                        $stmt = mysqli_prepare($con, $query);
+                        mysqli_stmt_bind_param($stmt, "s", $selected_date);
+                        mysqli_stmt_execute($stmt);
+                        $result = mysqli_stmt_get_result($stmt);
 
-                        if (!$query_run) {
-                            echo "<tr><td colspan='9'>Error: " . mysqli_error($con) . "</td></tr>";
-                        } elseif (mysqli_num_rows($query_run) == 0) {
-                            echo "<tr><td colspan='9' class='text-center py-4'>No deposits found.</td></tr>";
+                        if (mysqli_num_rows($result) == 0) {
+                            echo "<tr><td colspan='8' class='text-center py-5'>No deposits found for this date.</td></tr>";
                         } else {
-                            $grouped = [];
-                            while ($data = mysqli_fetch_assoc($query_run)) {
+                            while ($data = mysqli_fetch_assoc($result)) {
                                 $dateTime = new DateTime($data['created_at']);
                                 $dateTime->modify('+5 hours');
-                                $dateKey = $dateTime->format('d M Y'); // e.g., 19 Nov 2025
-                                $time = $dateTime->format('H bright:i:s');
+                                $time = $dateTime->format('H:i:s');
 
-                                $data['formatted_date'] = $dateKey;
-                                $data['formatted_time'] = $time;
-                                $grouped[$dateKey][] = $data;
-                            }
+                                $deposit_id         = htmlspecialchars($data['id']);
+                                $amount             = htmlspecialchars($data['amount']);
+                                $currency           = htmlspecialchars($data['currency'] ?? '$');
+                                $name               = htmlspecialchars($data['name']);
+                                $email              = htmlspecialchars($data['email'] ?? 'No Email');
+                                $image              = htmlspecialchars($data['image']);
+                                $approval_status    = htmlspecialchars($data['approval_status']);
+                                $payment_plan       = (int)($data['payment_plan'] ?? 1);
+                                $installment_number = (int)($data['installment_number'] ?? 1);
+                                $user_id            = htmlspecialchars($data['user_id'] ?? '');
 
-                            foreach ($grouped as $date => $deposits) {
-                                $depositCount = count($deposits);
-                                $collapseId = 'collapse-' . preg_replace('/[^a-zA-Z0-9]/', '', $date);
+                                $display_status = ucfirst($approval_status);
+                                $installment_display = $payment_plan > 1 ? "$installment_number/$payment_plan" : "One-Time";
                                 ?>
-                                <!-- Date Group Header -->
-                                <tr class="table-primary fw-bold bg-light">
-                                    <td colspan="9">
-                                        <a class="text-dark text-decoration-none d-flex align-items-center" 
-                                           data-bs-toggle="collapse" 
-                                           href="#<?= $collapseId ?>" 
-                                           role="button" 
-                                           aria-expanded="true">
-                                            <i class="bi bi-chevron-right me-2 transition-chevron"></i>
-                                            <?= htmlspecialchars($date) ?> 
-                                            <span class="badge bg-primary ms-2"><?= $depositCount ?> deposit<?= $depositCount > 1 ? 's' : '' ?></span>
-                                        </a>
+                                <tr class="deposit-row">
+                                    <td><?= $currency ?><?= number_format($amount, 2) ?></td>
+                                    <td class="deposit-name"><?= $name ?></td>
+                                    <td class="deposit-email"><?= $email ?></td>
+                                    <td>
+                                        <span class="badge bg-info text-light installment-badge"
+                                              data-deposit-id="<?= $deposit_id ?>"
+                                              data-payment-plan="<?= $payment_plan ?>"
+                                              data-installment-number="<?= $installment_number ?>"
+                                              style="cursor: pointer;"
+                                              onclick="openInstallmentModal(<?= $deposit_id ?>, <?= $payment_plan ?>, <?= $installment_number ?>)">
+                                            <?= $installment_display ?>
+                                        </span>
                                     </td>
-                                </tr>
-
-                                <tr class="collapse show" id="<?= $collapseId ?>">
-                                    <td colspan="9" class="p-0 border-0">
-                                        <table class="table table-sm table-hover mb-0">
-                                            <?php foreach ($deposits as $data):
-                                                $deposit_id       = htmlspecialchars($data['id']);
-                                                $amount           = htmlspecialchars($data['amount']);
-                                                $currency         = htmlspecialchars($data['currency'] ?? '$');
-                                                $name             = htmlspecialchars($data['name']);
-                                                $email            = htmlspecialchars($data['email'] ?? 'No Email');
-                                                $image            = htmlspecialchars($data['image']);
-                                                $approval_status  = htmlspecialchars($data['approval_status']);
-                                                $payment_plan     = (int)($data['payment_plan'] ?? 1);
-                                                $installment_number = (int)($data['installment_number'] ?? 1);
-                                                $user_id          = htmlspecialchars($data['user_id'] ?? '');
-
-                                                $display_status = ucfirst($approval_status);
-                                                $installment_display = $payment_plan > 1 ? "$installment_number/$payment_plan" : "One-Time";
-                                            ?>
-                                                <tr>
-                                                    <td><?= $currency ?><?= number_format($amount, 2) ?></td>
-                                                    <td class="deposit-name"><?= $name ?></td>
-                                                    <td class="deposit-email"><?= $email ?></td>
-                                                    <td>
-                                                        <span class="badge bg-info text-light installment-badge"
-                                                              data-deposit-id="<?= $deposit_id ?>"
-                                                              data-payment-plan="<?= $payment_plan ?>"
-                                                              data-installment-number="<?= $installment_number ?>"
-                                                              style="cursor: pointer;"
-                                                              onclick="openInstallmentModal(<?= $deposit_id ?>, <?= $payment_plan ?>, <?= $installment_number ?>)">
-                                                            <?= $installment_display ?>
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <?php if ($image): ?>
-                                                            <img src="../Uploads/<?= $image ?>" width="50" height="50" alt="Proof" class="rounded">
-                                                        <?php else: ?>
-                                                            No Image
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge <?= $approval_status === 'pending' ? 'bg-warning' : ($approval_status === 'approved' ? 'bg-success' : 'bg-danger') ?> text-light status-badge"
-                                                              data-deposit-id="<?= $deposit_id ?>"
-                                                              data-current-status="<?= $approval_status ?>"
-                                                              style="cursor: pointer;"
-                                                              onclick="openStatusModal(<?= $deposit_id ?>, '<?= $approval_status ?>')">
-                                                            <?= $display_status ?>
-                                                        </span>
-                                                    </td>
-                                                    <td><?= $data['formatted_date'] ?></td>
-                                                    <td><?= $data['formatted_time'] ?></td>
-                                                    <td>
-                                                        <?php if ($image): ?>
-                                                            <a href="../Uploads/<?= $image ?>" download class="btn btn-light btn-sm me-1">Download</a>
-                                                        <?php endif; ?>
-                                                        <?php if ($user_id): ?>
-                                                            <a href="edit-user.php?id=<?= urlencode($user_id) ?>" class="btn btn-light btn-sm">Edit</a>
-                                                        <?php else: ?>
-                                                            <span class="text-muted">No User</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </table>
+                                    <td>
+                                        <?php if ($image): ?>
+                                            <img src="../Uploads/<?= $image ?>" width="50" height="50" alt="Proof" class="rounded">
+                                        <?php else: ?>
+                                            No Image
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <span class="badge <?= $approval_status === 'pending' ? 'bg-warning' : ($approval_status === 'approved' ? 'bg-success' : 'bg-danger') ?> text-light status-badge"
+                                              data-deposit-id="<?= $deposit_id ?>"
+                                              data-current-status="<?= $approval_status ?>"
+                                              style="cursor: pointer;"
+                                              onclick="openStatusModal(<?= $deposit_id ?>, '<?= $approval_status ?>')">
+                                            <?= $display_status ?>
+                                        </span>
+                                    </td>
+                                    <td><?= $time ?></td>
+                                    <td>
+                                        <?php if ($image): ?>
+                                            <a href="../Uploads/<?= $image ?>" download class="btn btn-light btn-sm me-1">Download</a>
+                                        <?php endif; ?>
+                                        <?php if ($user_id): ?>
+                                            <a href="edit-user.php?id=<?= urlencode($user_id) ?>" class="btn btn-light btn-sm">Edit</a>
+                                        <?php else: ?>
+                                            <span class="text-muted">No User</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php
                             }
                         }
+                        mysqli_stmt_close($stmt);
                         ?>
                     </tbody>
                 </table>
             </div>
-            <!-- End Bordered Table -->
         </div>
     </div>
 
-    <!-- Status Change Modal -->
+    <!-- Modals (Status & Installment) - Same as before -->
     <div class="modal fade" id="statusModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -186,7 +182,6 @@ include('../config/dbcon.php'); // Include database connection
         </div>
     </div>
 
-    <!-- Installment Change Modal -->
     <div class="modal fade" id="installmentModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -200,7 +195,7 @@ include('../config/dbcon.php'); // Include database connection
                         <input type="number" id="paymentPlanInput" class="form-control" min="1" value="1">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Current Installment Number</label>
+                        <label class="form-label">Current Installment</label>
                         <input type="number" id="installmentNumberInput" class="form-control" min="1" value="1">
                     </div>
                     <input type="hidden" id="installmentDepositId">
@@ -216,102 +211,78 @@ include('../config/dbcon.php'); // Include database connection
 
 <?php include('inc/footer.php'); ?>
 
-<style>
-    .transition-chevron {
-        transition: transform 0.25s ease;
-    }
-    .collapse.show .transition-chevron {
-        transform: rotate(90deg);
-    }
-</style>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Basic real-time search (works on name/email)
+    // Search filter
     document.getElementById('searchInput').addEventListener('input', function() {
         const term = this.value.toLowerCase();
-        document.querySelectorAll('#depositsTable tbody tr').forEach(row => {
+        document.querySelectorAll('.deposit-row').forEach(row => {
             const name = row.querySelector('.deposit-name')?.textContent.toLowerCase() || '';
             const email = row.querySelector('.deposit-email')?.textContent.toLowerCase() || '';
-            const isVisible = name.includes(term) || email.includes(term);
-            row.style.display = isVisible ? '' : 'none';
+            row.style.display = (name.includes(term) || email.includes(term)) ? '' : 'none';
         });
     });
 
-    // Open Status Modal
-    window.openStatusModal = function(depositId, currentStatus) {
-        document.getElementById('newStatusSelect').value = currentStatus;
-        document.getElementById('depositId').value = depositId;
+    // Modal Functions
+    window.openStatusModal = function(id, status) {
+        document.getElementById('newStatusSelect').value = status;
+        document.getElementById('depositId').value = id;
         new bootstrap.Modal(document.getElementById('statusModal')).show();
     };
 
-    // Open Installment Modal
-    window.openInstallmentModal = function(depositId, paymentPlan, installmentNumber) {
-        document.getElementById('paymentPlanInput').value = paymentPlan;
-        document.getElementById('installmentNumberInput').value = installmentNumber;
-        document.getElementById('installmentDepositId').value = depositId;
+    window.openInstallmentModal = function(id, plan, num) {
+        document.getElementById('paymentPlanInput').value = plan;
+        document.getElementById('installmentNumberInput').value = num;
+        document.getElementById('installmentDepositId').value = id;
         new bootstrap.Modal(document.getElementById('installmentModal')).show();
     };
 
     // Save Status
-    document.getElementById('saveStatusButton').addEventListener('click', function() {
-        const depositId = document.getElementById('depositId').value;
-        const newStatus = document.getElementById('newStatusSelect').value;
-        const badge = document.querySelector(`.status-badge[data-deposit-id="${depositId}"]`);
-        const currentStatus = badge.getAttribute('data-current-status');
-
-        if (newStatus === currentStatus) {
-            bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
-            return;
-        }
+    document.getElementById('saveStatusButton').onclick = function() {
+        const id = document.getElementById('depositId').value;
+        const status = document.getElementById('newStatusSelect').value;
+        const badge = document.querySelector(`.status-badge[data-deposit-id="${id}"]`);
 
         fetch('update-deposit-status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `deposit_id=${depositId}&approval_status=${newStatus}`
+            body: `deposit_id=${id}&approval_status=${status}`
         })
         .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                badge.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
-                badge.className = `badge text-light status-badge ${newStatus === 'pending' ? 'bg-warning' : newStatus === 'approved' ? 'bg-success' : 'bg-danger'}`;
-                badge.setAttribute('data-current-status', newStatus);
+        .then(d => {
+            if (d.success) {
+                badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                badge.className = `badge text-light status-badge ${status === 'pending' ? 'bg-warning' : status === 'approved' ? 'bg-success' : 'bg-danger'}`;
+                badge.dataset.currentStatus = status;
                 bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
-            } else {
-                alert('Error: ' + data.message);
             }
         });
-    });
+    };
 
     // Save Installment
-    document.getElementById('saveInstallmentButton').addEventListener('click', function() {
-        const depositId = document.getElementById('installmentDepositId').value;
-        const paymentPlan = parseInt(document.getElementById('paymentPlanInput').value);
-        const installmentNumber = parseInt(document.getElementById('installmentNumberInput').value);
+    document.getElementById('saveInstallmentButton').onclick = function() {
+        const id = document.getElementById('installmentDepositId').value;
+        const plan = document.getElementById('paymentPlanInput').value;
+        const num = document.getElementById('installmentNumberInput').value;
 
-        if (installmentNumber > paymentPlan) {
-            alert('Current installment cannot exceed total plan.');
-            return;
-        }
+        if (num > plan) return alert('Installment cannot exceed total plan');
 
         fetch('update-deposit-installment.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `deposit_id=${depositId}&payment_plan=${paymentPlan}&installment_number=${installmentNumber}`
+            body: `deposit_id=${id}&payment_plan=${plan}&installment_number=${num}`
         })
         .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                const badge = document.querySelector(`.installment-badge[data-deposit-id="${depositId}"]`);
-                badge.textContent = paymentPlan > 1 ? `${installmentNumber}/${paymentPlan}` : 'One-Time';
-                badge.setAttribute('data-payment-plan', paymentPlan);
-                badge.setAttribute('data-installment-number', installmentNumber);
+        .then(d => {
+            if (d.success) {
+                const badge = document.querySelector(`.installment-badge[data-deposit-id="${id}"]`);
+                badge.textContent = plan > 1 ? `${num}/${plan}` : 'One-Time';
+                badge.dataset.paymentPlan = plan;
+                badge.dataset.installmentNumber = num;
                 bootstrap.Modal.getInstance(document.getElementById('installmentModal')).hide();
-            } else {
-                alert('Error: ' + data.message);
             }
         });
-    });
+    };
 });
 </script>
 </html>
