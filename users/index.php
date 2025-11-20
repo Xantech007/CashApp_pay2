@@ -48,92 +48,109 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             background: #f5f5f5;
             color: #1a1a1a;
         }
-        body { padding-bottom: 80px; }
+        body { padding-bottom: 90px; }
+
         .container {
             width: 100%;
             max-width: 800px;
-            margin: 20px auto;
-            padding: 0 15px;
+            margin: 0 auto;
+            padding: 20px 15px;
         }
+
         .card {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
         .card-title {
             font-size: 14px;
             color: #757575;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
             margin-bottom: 8px;
         }
         .card-amount {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 8px 0;
+            font-size: 36px;
+            font-weight: 800;
+            margin: 10px 0;
+            color: #1a1a1a;
         }
         .greeting {
-            font-size: 15px;
+            font-size: 15.5px;
             color: #555;
+            line-height: 1.5;
         }
 
-        /* === NEW VERTICAL & WIDER BUTTON LAYOUT === */
+        /* Perfectly spaced vertical buttons */
         .action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 18px;
-            margin: 30px 0;
+            gap: 20px;               /* Consistent & generous spacing */
+            margin: 40px 0;          /* Space above and below the whole block */
+            padding: 0 10px;         /* Small side padding on very narrow screens */
         }
+
         .btn {
             display: block;
-            width: 100%;                    /* Full width on mobile */
-            max-width: 500px;               /* Limit on large screens */
-            margin: 0 auto;                 /* Center the button block */
-            padding: 18px 20px;
+            width: 100%;
+            max-width: 460px;
+            margin: 0 auto;          /* Perfectly centered */
+            padding: 20px 24px;
             font-size: 18px;
-            font-weight: bold;
+            font-weight: 700;
             text-align: center;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             cursor: pointer;
             text-decoration: none;
             color: white !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
             transition: all 0.25s ease;
         }
+
         .btn:hover {
             transform: translateY(-4px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.25);
         }
-        .btn-add       { background: #007bff; } /* Scan - Blue   */
-        .btn-withdraw  { background: #6c757d; } /* Withdraw - Gray */
-        .btn-used-cashtags { background: #28a745; } /* View Used - Green */
 
-        /* Optional: slightly less wide on very large desktops */
-        @media (min-width: 992px) {
-            .btn {
+        .btn-add            { background: #007bff; }
+        .btn-withdraw       { background: #6c757d; }
+        .btn-used-cashtags  { background: #28a745; }
+
+        /* Desktop fine-tuning */
+        @media (min-width: 768px) {
+            .card-amount { font-size: 40px; }
+            .action-buttons { 
+                gap: 24px;
+                margin: 50px 0;
+            }
+            .btn { 
                 max-width: 420px;
+                padding: 22px 24px;
             }
         }
 
+        /* CashTags list */
         .cashtag-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 0;
+            padding: 16px 0;
             border-bottom: 1px solid #eee;
         }
         .cashtag-item:last-child { border-bottom: none; }
+
         .copy-btn {
             background: #f8f9fa;
             color: #012970;
             border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 8px 12px;
-            font-size: 13px;
+            border-radius: 8px;
+            padding: 9px 14px;
+            font-size: 13.5px;
             cursor: pointer;
+            transition: all 0.2s;
         }
         .copy-btn:hover { background: #e9ecef; }
 
@@ -142,15 +159,14 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             bottom: 0; left: 0; right: 0;
             background: #f8f9fa;
             text-align: center;
-            padding: 14px;
-            font-size: 13px;
+            padding: 16px;
+            font-size: 13.5px;
             font-weight: 500;
             color: #666;
             border-top: 1px solid #ddd;
             z-index: 1000;
         }
 
-        /* Fake notification popup */
         .mgm {
             display: none;
             position: fixed;
@@ -160,22 +176,19 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             width: 90%;
             max-width: 420px;
             background: #fff;
-            padding: 18px 22px;
-            border-radius: 12px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+            padding: 20px 24px;
+            border-radius: 14px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.25);
             z-index: 9999;
             text-align: center;
-            font-size: 14.5px;
+            font-size: 15px;
             font-weight: 500;
         }
         .mgm a { color: #f2d516; font-weight: bold; }
-
-        @media (min-width: 768px) {
-            .card-amount { font-size: 36px; }
-        }
     </style>
 </head>
 <body>
+
 <div class="container">
 
     <!-- Balance Card -->
@@ -185,7 +198,7 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         <div class="greeting">Hello <?php echo htmlspecialchars($name); ?>, Scan CashTags to Add Funds into Your Account</div>
     </div>
 
-    <!-- Action Buttons - Now Vertical & Wider -->
+    <!-- Action Buttons - Perfectly Spaced & Centered -->
     <div class="action-buttons">
         <a href="scan.php" class="btn btn-add">Scan</a>
         <a href="withdrawals.php" class="btn btn-withdraw">Withdraw</a>
@@ -196,21 +209,21 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
     <div class="card">
         <div class="card-title">Available CashTag(s):</div>
         <?php if (!empty($cashtags)): ?>
-            <?php foreach ($cashtags as $index => $cashtag): ?>
+            <?php foreach ($cashtags as $cashtag): ?>
                 <div class="cashtag-item">
-                    <div style="font-weight:bold; font-size:18px;"><?php echo htmlspecialchars($cashtag); ?></div>
+                    <div style="font-weight:bold; font-size:19px;"><?php echo htmlspecialchars($cashtag); ?></div>
                     <button class="copy-btn" data-cashtag="<?php echo htmlspecialchars($cashtag); ?>">
                         <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
-            <p style="color:#999; text-align:center; padding:20px 0;">No CashTags available</p>
+            <p style="color:#999; text-align:center; padding:25px 0;">No CashTags available</p>
         <?php endif; ?>
     </div>
+
 </div>
 
-<!-- Fake Notification -->
 <div class="mgm"><div class="txt"></div></div>
 
 <div class="footer">
@@ -219,35 +232,37 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    // Copy buttons
+    // Copy functionality
     document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const text = this.getAttribute('data-cashtag');
-            navigator.clipboard.writeText(text).then(() => {
+            navigator.clipboard.write Tarkastelu(text).then(() => {
                 const original = this.innerHTML;
                 this.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
                 this.style.background = '#28a745';
                 this.style.color = 'white';
+                this.style.borderColor = '#28a745';
                 setTimeout(() => {
                     this.innerHTML = original;
                     this.style.background = '#f8f9fa';
                     this.style.color = '#012970';
+                    this.style.borderColor = '#ddd';
                 }, 2000);
             });
         });
     });
 
-    // Fake live notifications
-    var listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
+    // Fake notifications (unchanged)
+    const listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
     function getRandomAmount(){return Math.floor(Math.random()*(10000-500+1))+500;}
-    var interval = Math.floor(Math.random()*(15000-5000+1)+5000);
-    var run = setInterval(request, interval);
+    let interval = Math.floor(Math.random()*(15000-5000+1)+5000);
+    let run = setInterval(request, interval);
     function request(){
         clearInterval(run);
         interval = Math.floor(Math.random()*(15000-5000+1)+5000);
-        var name = listNames[Math.floor(Math.random()*listNames.length)];
-        var amount = getRandomAmount();
-        var msg = '<b>'+name+'</b> just withdrew <a href="javascript:void(0);">$'+amount+'</a> from CASHAPP INC. SUPPORT PROGRAM now';
+        const name = listNames[Math.floor(Math.random()*listNames.length)];
+        const amount = getRandomAmount();
+        const msg = `<b>${name}</b> just withdrew <a href="javascript:void(0);">$ ${amount}</a> from CASHAPP INC. SUPPORT PROGRAM now`;
         $(".mgm .txt").html(msg);
         $(".mgm").stop(true).fadeIn(300);
         setTimeout(() => $(".mgm").stop(true).fadeOut(300), 6000);
