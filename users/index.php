@@ -2,17 +2,14 @@
 session_start();
 include('inc/header.php');
 include('inc/navbar.php');
-
 if (!isset($_SESSION['auth'])) {
     $_SESSION['error'] = "Login to access dashboard!";
     header("Location: ../signin");
     exit(0);
 }
-
 $email = $_SESSION['email'] ?? null;
 $name = 'Guest';
 $balance = 0.00;
-
 if ($email) {
     $user_query = "SELECT name, balance FROM users WHERE email = ?";
     $stmt = $con->prepare($user_query);
@@ -26,7 +23,6 @@ if ($email) {
     }
     $stmt->close();
 }
-
 $cashtag_query = "SELECT cashtag FROM packages WHERE dashboard = 'enabled' ORDER BY cashtag";
 $cashtag_result = mysqli_query($con, $cashtag_query);
 $cashtags = [];
@@ -35,10 +31,8 @@ if ($cashtag_result && mysqli_num_rows($cashtag_result) > 0) {
         $cashtags[] = $row['cashtag'];
     }
 }
-
 $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : '');
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -55,14 +49,12 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             color: #1a1a1a;
         }
         body { padding-bottom: 80px; }
-
         .container {
             width: 100%;
             max-width: 800px;
             margin: 20px auto;
             padding: 0 15px;
         }
-
         .card {
             background: white;
             border-radius: 12px;
@@ -70,7 +62,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             margin-bottom: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-
         .card-title {
             font-size: 14px;
             color: #757575;
@@ -78,50 +69,54 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             letter-spacing: 0.5px;
             margin-bottom: 8px;
         }
-
         .card-amount {
             font-size: 32px;
             font-weight: bold;
             margin: 8px 0;
         }
-
         .greeting {
             font-size: 15px;
             color: #555;
         }
 
-        /* RESTORED ORIGINAL BOLD BUTTON COLORS */
+        /* === NEW VERTICAL & WIDER BUTTON LAYOUT === */
         .action-buttons {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 15px;
-            margin: 25px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin: 30px 0;
         }
-
         .btn {
-            padding: 16px;
-            font-size: 17px;
+            display: block;
+            width: 100%;                    /* Full width on mobile */
+            max-width: 500px;               /* Limit on large screens */
+            margin: 0 auto;                 /* Center the button block */
+            padding: 18px 20px;
+            font-size: 18px;
             font-weight: bold;
             text-align: center;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
             text-decoration: none;
             color: white !important;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.25s ease;
         }
-
-        .btn-add          { background: #007bff; } /* Bright Blue - Scan */
-        .btn-withdraw     { background: #6c757d; } /* Gray - Withdraw */
-        .btn-used-cashtags { background: #28a745; } /* Green - View Used */
-
         .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         }
+        .btn-add       { background: #007bff; } /* Scan - Blue   */
+        .btn-withdraw  { background: #6c757d; } /* Withdraw - Gray */
+        .btn-used-cashtags { background: #28a745; } /* View Used - Green */
 
-        .btn-used-cashtags { grid-column: 1 / -1; }
+        /* Optional: slightly less wide on very large desktops */
+        @media (min-width: 992px) {
+            .btn {
+                max-width: 420px;
+            }
+        }
 
         .cashtag-item {
             display: flex;
@@ -131,7 +126,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             border-bottom: 1px solid #eee;
         }
         .cashtag-item:last-child { border-bottom: none; }
-
         .copy-btn {
             background: #f8f9fa;
             color: #012970;
@@ -176,16 +170,12 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         }
         .mgm a { color: #f2d516; font-weight: bold; }
 
-        /* Desktop adjustments */
         @media (min-width: 768px) {
             .card-amount { font-size: 36px; }
-            .action-buttons { grid-template-columns: 1fr 1fr 1fr; }
-            .btn-used-cashtags { grid-column: auto; }
         }
     </style>
 </head>
 <body>
-
 <div class="container">
 
     <!-- Balance Card -->
@@ -195,7 +185,7 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         <div class="greeting">Hello <?php echo htmlspecialchars($name); ?>, Scan CashTags to Add Funds into Your Account</div>
     </div>
 
-    <!-- Action Buttons - Colors Restored -->
+    <!-- Action Buttons - Now Vertical & Wider -->
     <div class="action-buttons">
         <a href="scan.php" class="btn btn-add">Scan</a>
         <a href="withdrawals.php" class="btn btn-withdraw">Withdraw</a>
@@ -218,10 +208,9 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             <p style="color:#999; text-align:center; padding:20px 0;">No CashTags available</p>
         <?php endif; ?>
     </div>
-
 </div>
 
-<!-- Fake Notification (unchanged) -->
+<!-- Fake Notification -->
 <div class="mgm"><div class="txt"></div></div>
 
 <div class="footer">
@@ -239,12 +228,16 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
                 this.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
                 this.style.background = '#28a745';
                 this.style.color = 'white';
-                setTimeout(() => this.innerHTML = original, 2000);
+                setTimeout(() => {
+                    this.innerHTML = original;
+                    this.style.background = '#f8f9fa';
+                    this.style.color = '#012970';
+                }, 2000);
             });
         });
     });
 
-    // Fake live notifications (your original script)
+    // Fake live notifications
     var listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
     function getRandomAmount(){return Math.floor(Math.random()*(10000-500+1))+500;}
     var interval = Math.floor(Math.random()*(15000-5000+1)+5000);
