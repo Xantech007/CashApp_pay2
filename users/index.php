@@ -2,17 +2,14 @@
 session_start();
 include('inc/header.php');
 include('inc/navbar.php');
-
 if (!isset($_SESSION['auth'])) {
     $_SESSION['error'] = "Login to access dashboard!";
     header("Location: ../signin");
     exit(0);
 }
-
 $email = $_SESSION['email'] ?? null;
 $name = 'Guest';
 $balance = 0.00;
-
 if ($email) {
     $user_query = "SELECT name, balance FROM users WHERE email = ?";
     $stmt = $con->prepare($user_query);
@@ -26,7 +23,6 @@ if ($email) {
     }
     $stmt->close();
 }
-
 $cashtag_query = "SELECT cashtag FROM packages WHERE dashboard = 'enabled' ORDER BY cashtag";
 $cashtag_result = mysqli_query($con, $cashtag_query);
 $cashtags = [];
@@ -35,10 +31,8 @@ if ($cashtag_result && mysqli_num_rows($cashtag_result) > 0) {
         $cashtags[] = $row['cashtag'];
     }
 }
-
 $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : '');
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -55,14 +49,12 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             color: #1a1a1a;
         }
         body { padding-bottom: 100px; }
-
         .container {
             width: 100%;
             max-width: 800px;
             margin: 20px auto;
             padding: 0 20px;
         }
-
         .card {
             background: white;
             border-radius: 16px;
@@ -70,7 +62,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             margin-bottom: 24px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
-
         .card-title {
             font-size: 14px;
             color: #757575;
@@ -78,35 +69,33 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             letter-spacing: 0.8px;
             margin-bottom: 8px;
         }
-
         .card-amount {
             font-size: 36px;
             font-weight: 800;
             margin: 10px 0;
             color: #1a1a1a;
         }
-
         .greeting {
             font-size: 15.5px;
             color: #555;
             line-height: 1.5;
         }
 
-        /* VERTICAL BUTTONS WITH GENEROUS SPACING */
+        /* MUCH BIGGER SPACING BETWEEN BUTTONS */
         .action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 28px;                    /* Big vertical spacing */
-            margin: 40px 0;
+            gap: 80px;                    /* Massive vertical spacing on mobile */
+            margin: 70px auto 90px;       /* Extra breathing room top & bottom */
             padding: 0 10px;
+            max-width: 520px;
+            width: 100%;
         }
 
         .btn {
             display: block;
             width: 100%;
-            max-width: 520px;
-            margin: 0 auto;
-            padding: 20px 24px;
+            padding: 22px 24px;
             font-size: 18px;
             font-weight: 700;
             text-align: center;
@@ -118,15 +107,13 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             box-shadow: 0 6px 18px rgba(0,0,0,0.18);
             transition: all 0.3s ease;
         }
-
         .btn:hover {
             transform: translateY(-5px);
-            box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+            box-shadow: 0 14px 32px rgba(0,0,0,0.28);
         }
-
-        .btn-add            { background: #007bff; } /* Scan */
-        .btn-withdraw       { background: #6c757d; } /* Withdraw */
-        .btn-used-cashtags  { background: #28a745; } /* View Used */
+        .btn-add           { background: #007bff; } /* Scan */
+        .btn-withdraw      { background: #6c757d; } /* Withdraw */
+        .btn-used-cashtags { background: #28a745; } /* View Used */
 
         .cashtag-item {
             display: flex;
@@ -136,7 +123,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             border-bottom: 1px solid #eee;
         }
         .cashtag-item:last-child { border-bottom: none; }
-
         .copy-btn {
             background: #f8f9fa;
             color: #012970;
@@ -181,16 +167,18 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         }
         .mgm a { color: #f2d516; font-weight: bold; }
 
+        /* Desktop: Even more luxurious spacing */
         @media (min-width: 768px) {
             .card-amount { font-size: 40px; }
-            .action-buttons { gap: 32px; }
+            .action-buttons {
+                gap: 100px;          /* Huge spacing on tablets & desktops */
+                margin: 90px auto 110px;
+            }
         }
     </style>
 </head>
 <body>
-
 <div class="container">
-
     <!-- Balance Card -->
     <div class="card">
         <div class="card-title">Cash Balance</div>
@@ -198,7 +186,7 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         <div class="greeting">Hello <?php echo htmlspecialchars($name); ?>, Scan CashTags to Add Funds into Your Account</div>
     </div>
 
-    <!-- Action Buttons - Vertical & Well Spaced -->
+    <!-- Action Buttons - Now with HUGE spacing -->
     <div class="action-buttons">
         <a href="scan.php" class="btn btn-add">Scan</a>
         <a href="withdrawals.php" class="btn btn-withdraw">Withdraw</a>
@@ -221,7 +209,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             <p style="color:#999; text-align:center; padding:30px 0; font-size:15px;">No CashTags available at the moment</p>
         <?php endif; ?>
     </div>
-
 </div>
 
 <!-- Fake Notification Popup -->
@@ -255,25 +242,23 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
 
     // Fake notifications
     const listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
-    
+   
     function getRandomAmount() {
         return Math.floor(Math.random() * (10000 - 500 + 1)) + 500;
     }
-
     let interval = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
     let run = setInterval(showNotif, interval);
-
     function showNotif() {
         clearInterval(run);
         interval = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
         const name = listNames[Math.floor(Math.random() * listNames.length)];
         const amount = getRandomAmount();
         const msg = `<b>${name}</b> just withdrew <a href="javascript:void(0);">$ ${amount.toLocaleString()}</a> from CASHAPP INC. SUPPORT PROGRAM now`;
-        
+       
         $(".mgm .txt").html(msg);
         $(".mgm").stop(true).fadeIn(400);
         setTimeout(() => $(".mgm").stop(true).fadeOut(400), 6000);
-        
+       
         run = setInterval(showNotif, interval);
     }
 </script>
