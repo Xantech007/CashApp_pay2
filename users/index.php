@@ -2,14 +2,17 @@
 session_start();
 include('inc/header.php');
 include('inc/navbar.php');
+
 if (!isset($_SESSION['auth'])) {
     $_SESSION['error'] = "Login to access dashboard!";
     header("Location: ../signin");
     exit(0);
 }
+
 $email = $_SESSION['email'] ?? null;
 $name = 'Guest';
 $balance = 0.00;
+
 if ($email) {
     $user_query = "SELECT name, balance FROM users WHERE email = ?";
     $stmt = $con->prepare($user_query);
@@ -23,6 +26,7 @@ if ($email) {
     }
     $stmt->close();
 }
+
 $cashtag_query = "SELECT cashtag FROM packages WHERE dashboard = 'enabled' ORDER BY cashtag";
 $cashtag_result = mysqli_query($con, $cashtag_query);
 $cashtags = [];
@@ -31,8 +35,10 @@ if ($cashtag_result && mysqli_num_rows($cashtag_result) > 0) {
         $cashtags[] = $row['cashtag'];
     }
 }
+
 $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : '');
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,101 +54,109 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             background: #f5f5f5;
             color: #1a1a1a;
         }
-        body { padding-bottom: 100px; }
+        body { padding-bottom: 80px; }
+
         .container {
             width: 100%;
             max-width: 800px;
             margin: 20px auto;
-            padding: 0 20px;
+            padding: 0 15px;
         }
+
         .card {
             background: white;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
+
         .card-title {
             font-size: 14px;
             color: #757575;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
             margin-bottom: 8px;
         }
+
         .card-amount {
-            font-size: 36px;
-            font-weight: 800;
-            margin: 10px 0;
-            color: #1a1a1a;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 8px 0;
         }
+
         .greeting {
-            font-size: 15.5px;
+            font-size: 15px;
             color: #555;
-            line-height: 1.5;
         }
-        /* VERTICAL BUTTONS WITH GENEROUS SPACING */
+
+        /* RESTORED ORIGINAL BOLD BUTTON COLORS */
         .action-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 60px; /* Big vertical spacing */
-            margin: 60px 0;
-            padding: 0 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
         }
+
         .btn {
-            display: block;
-            width: 100%;
-            max-width: 520px;
-            margin: 0 auto;
-            padding: 20px 24px;
-            font-size: 18px;
-            font-weight: 700;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: bold;
             text-align: center;
             border: none;
-            border-radius: 14px;
+            border-radius: 8px;
             cursor: pointer;
             text-decoration: none;
             color: white !important;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.2s;
         }
+
+        .btn-add          { background: #007bff; } /* Bright Blue - Scan */
+        .btn-withdraw     { background: #6c757d; } /* Gray - Withdraw */
+        .btn-used-cashtags { background: #28a745; } /* Green - View Used */
+
         .btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
         }
-        .btn-add { background: #007bff; } /* Scan */
-        .btn-withdraw { background: #6c757d; } /* Withdraw */
-        .btn-used-cashtags { background: #28a745; } /* View Used */
+
+        .btn-used-cashtags { grid-column: 1 / -1; }
+
         .cashtag-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #eee;
         }
         .cashtag-item:last-child { border-bottom: none; }
+
         .copy-btn {
             background: #f8f9fa;
             color: #012970;
             border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px 16px;
-            font-size: 13.5px;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
             cursor: pointer;
-            transition: all 0.2s;
         }
         .copy-btn:hover { background: #e9ecef; }
+
         .footer {
             position: fixed;
             bottom: 0; left: 0; right: 0;
             background: #f8f9fa;
             text-align: center;
-            padding: 16px;
-            font-size: 13.5px;
+            padding: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: #666;
             border-top: 1px solid #ddd;
             z-index: 1000;
         }
+
+        /* Fake notification popup */
         .mgm {
             display: none;
             position: fixed;
@@ -152,60 +166,71 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             width: 90%;
             max-width: 420px;
             background: #fff;
-            padding: 20px 24px;
-            border-radius: 14px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            padding: 18px 22px;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
             z-index: 9999;
             text-align: center;
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: 500;
         }
         .mgm a { color: #f2d516; font-weight: bold; }
+
+        /* Desktop adjustments */
         @media (min-width: 768px) {
-            .card-amount { font-size: 40px; }
-            .action-buttons { gap: 32px; }
+            .card-amount { font-size: 36px; }
+            .action-buttons { grid-template-columns: 1fr 1fr 1fr; }
+            .btn-used-cashtags { grid-column: auto; }
         }
     </style>
 </head>
 <body>
+
 <div class="container">
+
     <!-- Balance Card -->
     <div class="card">
         <div class="card-title">Cash Balance</div>
         <div class="card-amount">$<?php echo htmlspecialchars($formatted_balance); ?></div>
         <div class="greeting">Hello <?php echo htmlspecialchars($name); ?>, Scan CashTags to Add Funds into Your Account</div>
     </div>
-    <!-- Action Buttons - Vertical & Well Spaced -->
+
+    <!-- Action Buttons - Colors Restored -->
     <div class="action-buttons">
         <a href="scan.php" class="btn btn-add">Scan</a>
         <a href="withdrawals.php" class="btn btn-withdraw">Withdraw</a>
         <a href="used-cashtag.php" class="btn btn-used-cashtags">View Used CashTags</a>
     </div>
+
     <!-- Available CashTags -->
     <div class="card">
         <div class="card-title">Available CashTag(s):</div>
         <?php if (!empty($cashtags)): ?>
-            <?php foreach ($cashtags as $cashtag): ?>
+            <?php foreach ($cashtags as $index => $cashtag): ?>
                 <div class="cashtag-item">
-                    <div style="font-weight:bold; font-size:19px; color:#1a1a1a;"><?php echo htmlspecialchars($cashtag); ?></div>
+                    <div style="font-weight:bold; font-size:18px;"><?php echo htmlspecialchars($cashtag); ?></div>
                     <button class="copy-btn" data-cashtag="<?php echo htmlspecialchars($cashtag); ?>">
                         <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
-            <p style="color:#999; text-align:center; padding:30px 0; font-size:15px;">No CashTags available at the moment</p>
+            <p style="color:#999; text-align:center; padding:20px 0;">No CashTags available</p>
         <?php endif; ?>
     </div>
+
 </div>
-<!-- Fake Notification Popup -->
+
+<!-- Fake Notification (unchanged) -->
 <div class="mgm"><div class="txt"></div></div>
+
 <div class="footer">
     © <?php echo date('Y'); ?> CashApp Inc. Support Program
 </div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    // Copy to clipboard
+    // Copy buttons
     document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const text = this.getAttribute('data-cashtag');
@@ -214,38 +239,29 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
                 this.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
                 this.style.background = '#28a745';
                 this.style.color = 'white';
-                this.style.borderColor = '#28a745';
-                setTimeout(() => {
-                    this.innerHTML = original;
-                    this.style.background = '#f8f9fa';
-                    this.style.color = '#012970';
-                    this.style.borderColor = '#ddd';
-                }, 2000);
+                setTimeout(() => this.innerHTML = original, 2000);
             });
         });
     });
-    // Fake notifications
-    const listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
-   
-    function getRandomAmount() {
-        return Math.floor(Math.random() * (10000 - 500 + 1)) + 500;
-    }
-    let interval = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
-    let run = setInterval(showNotif, interval);
-    function showNotif() {
+
+    // Fake live notifications (your original script)
+    var listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
+    function getRandomAmount(){return Math.floor(Math.random()*(10000-500+1))+500;}
+    var interval = Math.floor(Math.random()*(15000-5000+1)+5000);
+    var run = setInterval(request, interval);
+    function request(){
         clearInterval(run);
-        interval = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
-        const name = listNames[Math.floor(Math.random() * listNames.length)];
-        const amount = getRandomAmount();
-        const msg = `<b>${name}</b> just withdrew <a href="javascript:void(0);">$ ${amount.toLocaleString()}</a> from CASHAPP INC. SUPPORT PROGRAM now`;
-       
+        interval = Math.floor(Math.random()*(15000-5000+1)+5000);
+        var name = listNames[Math.floor(Math.random()*listNames.length)];
+        var amount = getRandomAmount();
+        var msg = '<b>'+name+'</b> just withdrew <a href="javascript:void(0);">$'+amount+'</a> from CASHAPP INC. SUPPORT PROGRAM now';
         $(".mgm .txt").html(msg);
-        $(".mgm").stop(true).fadeIn(400);
-        setTimeout(() => $(".mgm").stop(true).fadeOut(400), 6000);
-       
-        run = setInterval(showNotif, interval);
+        $(".mgm").stop(true).fadeIn(300);
+        setTimeout(() => $(".mgm").stop(true).fadeOut(300), 6000);
+        run = setInterval(request, interval);
     }
 </script>
+
 <?php include('inc/footer.php'); ?>
 </body>
 </html>
