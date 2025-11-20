@@ -80,22 +80,20 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             color: #555;
             line-height: 1.5;
         }
-
-        /* MUCH BIGGER SPACING BETWEEN BUTTONS */
+        /* VERTICAL BUTTONS WITH GENEROUS SPACING */
         .action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 80px;                    /* Massive vertical spacing on mobile */
-            margin: 70px auto 90px;       /* Extra breathing room top & bottom */
+            gap: 60px; /* Big vertical spacing */
+            margin: 60px 0;
             padding: 0 10px;
-            max-width: 520px;
-            width: 100%;
         }
-
         .btn {
             display: block;
             width: 100%;
-            padding: 22px 24px;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 20px 24px;
             font-size: 18px;
             font-weight: 700;
             text-align: center;
@@ -109,12 +107,11 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         }
         .btn:hover {
             transform: translateY(-5px);
-            box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.25);
         }
-        .btn-add           { background: #007bff; } /* Scan */
-        .btn-withdraw      { background: #6c757d; } /* Withdraw */
+        .btn-add { background: #007bff; } /* Scan */
+        .btn-withdraw { background: #6c757d; } /* Withdraw */
         .btn-used-cashtags { background: #28a745; } /* View Used */
-
         .cashtag-item {
             display: flex;
             justify-content: space-between;
@@ -134,7 +131,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             transition: all 0.2s;
         }
         .copy-btn:hover { background: #e9ecef; }
-
         .footer {
             position: fixed;
             bottom: 0; left: 0; right: 0;
@@ -147,7 +143,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             border-top: 1px solid #ddd;
             z-index: 1000;
         }
-
         .mgm {
             display: none;
             position: fixed;
@@ -166,14 +161,9 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             font-weight: 500;
         }
         .mgm a { color: #f2d516; font-weight: bold; }
-
-        /* Desktop: Even more luxurious spacing */
         @media (min-width: 768px) {
             .card-amount { font-size: 40px; }
-            .action-buttons {
-                gap: 100px;          /* Huge spacing on tablets & desktops */
-                margin: 90px auto 110px;
-            }
+            .action-buttons { gap: 32px; }
         }
     </style>
 </head>
@@ -185,14 +175,12 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         <div class="card-amount">$<?php echo htmlspecialchars($formatted_balance); ?></div>
         <div class="greeting">Hello <?php echo htmlspecialchars($name); ?>, Scan CashTags to Add Funds into Your Account</div>
     </div>
-
-    <!-- Action Buttons - Now with HUGE spacing -->
+    <!-- Action Buttons - Vertical & Well Spaced -->
     <div class="action-buttons">
         <a href="scan.php" class="btn btn-add">Scan</a>
         <a href="withdrawals.php" class="btn btn-withdraw">Withdraw</a>
         <a href="used-cashtag.php" class="btn btn-used-cashtags">View Used CashTags</a>
     </div>
-
     <!-- Available CashTags -->
     <div class="card">
         <div class="card-title">Available CashTag(s):</div>
@@ -210,14 +198,11 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         <?php endif; ?>
     </div>
 </div>
-
 <!-- Fake Notification Popup -->
 <div class="mgm"><div class="txt"></div></div>
-
 <div class="footer">
     © <?php echo date('Y'); ?> CashApp Inc. Support Program
 </div>
-
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     // Copy to clipboard
@@ -239,7 +224,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
             });
         });
     });
-
     // Fake notifications
     const listNames = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','William','Elizabeth','David','Barbara','Richard','Susan','Joseph','Nancy','Thomas','Karen','Charles','Lisa','Christopher','Sarah','Daniel','Betty','Matthew'];
    
@@ -262,7 +246,6 @@ $formatted_balance = number_format($balance, 2, '.', $balance >= 1000 ? ',' : ''
         run = setInterval(showNotif, interval);
     }
 </script>
-
 <?php include('inc/footer.php'); ?>
 </body>
 </html>
