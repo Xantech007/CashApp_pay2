@@ -4,175 +4,262 @@ include('../config/dbcon.php');
 include('inc/header.php');
 include('inc/navbar.php');
 
-// Check if user is logged in
-if (!isset($_SESSION['auth'])) {
-    $_SESSION['error'] = "Please log in to access this page.";
-    error_log("scan-results.php - User not logged in, redirecting to signin.php");
+// Redirect if not logged in
+if (!isset($_SESSION['auth']) || !isset($_SESSION['email'])) {
+    $_SESSION['error'] = "Please log in to continue.";
     header("Location: ../signin.php");
-    exit(0);
+    exit();
 }
 
-// Debugging: Log session data
-error_log("scan-results.php - Session: " . print_r($_SESSION, true));
-
-// Initialize variables
+$email = $_SESSION['email'];
 $cashtag = null;
 $user_id = null;
 
-// Get user_id from email
-$email = mysqli_real_escape_string($con, $_SESSION['email']);
-$user_query = "SELECT id FROM users WHERE email = '$email' LIMIT 1";
-$user_query_run = mysqli_query($con, $user_query);
-if ($user_query_run && mysqli_num_rows($user_query_run) > 0) {
-    $user_data = mysqli_fetch_assoc($user_query_run);
-    $user_id = $user_data['id'];
+// Get user ID securely
+$stmt = $con->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$result = $stmt->get_result();
+if ($row = $result->fetch_assoc()) {
+    $user_id = $row['id'];
 } else {
     $_SESSION['error'] = "User not found.";
-    error_log("scan-results.php - User not found for email: $email");
     header("Location: ../signin.php");
-    exit(0);
+    exit();
 }
+$stmt->close();
 
-// Handle POST request with CashTag
+// Handle CashTag submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['scan_input']) || empty(trim($_POST['scan_input']))) {
-        $_SESSION['error'] = "No CashTag provided.";
-        error_log("scan-results.php - No CashTag provided, redirecting to scan.php");
+    if (empty(trim($_POST['scan_input'] ?? ''))) {
+        $_SESSION['error'] = "Please enter a CashTag.";
         header("Location: scan.php");
-        exit(0);
+        exit();
     }
 
-    $cashtag = mysqli_real_escape_string($con, trim($_POST['scan_input']));
-    
-    // Validate CashTag
-    $cashtag_query = "SELECT COUNT(*) as count FROM packages WHERE cashtag = '$cashtag' AND status = '0'";
-    $cashtag_query_run = mysqli_query($con, $cashtag_query);
+    $input_cashtag = trim($_POST['scan_input']);
 
-    if ($cashtag_query_run) {
-        $cashtag_result = mysqli_fetch_assoc($cashtag_query_run);
-        if ($cashtag_result['count'] == 0) {
-            $_SESSION['error'] = "Invalid CashTag.";
-            error_log("scan-results.php - Invalid CashTag: $cashtag, redirecting to scan.php");
-            header("Location: scan.php");
-            exit(0);
-        }
-    } else {
-        $_SESSION['error'] = "Error validating CashTag. Please try again.";
-        error_log("scan-results.php - CashTag query error: " . mysqli_error($con));
+    // Validate: CashTag exists and is unused
+    $stmt = $con->prepare("SELECT COUNT(*) as total FROM packages WHERE cashtag = ? AND status = '0'");
+    $stmt->bind_param("s", $input_cashtag);
+    $stmt->execute();
+    $count = $stmt->get_result()->fetch_assoc()['total'];
+    $stmt->close();
+
+    if ($count == 0) {
+        $_SESSION['error'] = "Invalid or expired CashTag.";
         header("Location: scan.php");
-        exit(0);
+        exit();
     }
 
-    // Check if CashTag has been used by this user
-    $usage_query = "SELECT COUNT(*) as count FROM cashtag_usage WHERE user_id = '$user_id' AND cashtag = '$cashtag'";
-    $usage_query_run = mysqli_query($con, $usage_query);
+    // Check if already used by this user
+    $stmt = $con->prepare("SELECT COUNT(*) as used FROM cashtag_usage WHERE user_id = ? AND cashtag = ?");
+    $stmt->bind_param("is", $user_id, $input_cashtag);
+    $stmt->execute();
+    $used = $stmt->get_result()->fetch_assoc()['used'];
+    $stmt->close();
 
-    if ($usage_query_run) {
-        $usage_result = mysqli_fetch_assoc($usage_query_run);
-        if ($usage_result['count'] > 0) {
-            $_SESSION['error'] = "This CashTag has already been used.";
-            error_log("scan-results.php - CashTag already used by user_id: $user_id, cashtag: $cashtag");
-            header("Location: scan.php");
-            exit(0);
-        }
-    } else {
-        $_SESSION['error'] = "Error checking CashTag usage. Please try again.";
-        error_log("scan-results.php - Usage query error: " . mysqli_error($con));
+    if ($used > 0) {
+        $_SESSION['error'] = "You've already used this CashTag.";
         header("Location: scan.php");
-        exit(0);
+        exit();
     }
+
+    $cashtag = $input_cashtag; // Valid and unused
 }
 ?>
 
-<main id="main" class="main">
-  <div class="pagetitle">
-    <h1>CashTag Found! Select Amount</h1>
-    <nav>
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="../users/index.php">Home</a></li>
-        <li class="breadcrumb.Swing">
-          <a href="../users/scan.php" class="text-decoration-none">Scan</a>
-        </li>
-        <li class="breadcrumb-item active">Results</li>
-      </ol>
-    </nav>
-  </div><!-- End Page Title -->
-
-  <!-- Success/Error Messages -->
-  <?php
-  if (isset($_SESSION['success'])) { ?>
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-      <?= htmlspecialchars($_SESSION['success']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <script>
-      console.log("Redirecting to users-profile.php in 3 seconds...");
-      setTimeout(() => {
-        window.location.href = '../users/users-profile.php';
-      }, 3000);
-    </script>
-  <?php }
-  unset($_SESSION['success']);
-  if (isset($_SESSION['error'])) { ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-      <?= htmlspecialchars($_SESSION['error']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <script>
-      console.log("Redirecting to users-profile.php in 3 seconds due to error...");
-      setTimeout(() => {
-        window.location.href = '../users/users-profile.php';
-      }, 3000);
-    </script>
-  <?php }
-  unset($_SESSION['error']);
-  ?>
-
-  <?php if ($cashtag) { ?>
-    <div class="container text-center">
-      <div class="row">
-        <?php
-        // Fetch packages for the valid CashTag, ordered by max_a ASC
-        $query = "SELECT * FROM packages WHERE cashtag = '$cashtag' AND status = '0' ORDER BY max_a ASC";
-        $query_run = mysqli_query($con, $query);
-        if ($query_run) {
-          if (mysqli_num_rows($query_run) > 0) {
-            foreach ($query_run as $data) { ?>
-              <div class="col-md-4">
-                <div class="card text-center">
-                  <div class="card-header">
-                    <?= htmlspecialchars($data['name']) ?>
-                  </div>
-                  <div class="card-body mt-2">
-                    <div class="mt-3">
-                      <h6>Amount: $<?= htmlspecialchars(number_format($data['max_a'], 2)) ?></h6>
-                    </div>
-                    <div class="mt-3">
-                      <form action="../codes/balance.php" method="POST">
-                        <input type="hidden" name="id" value="<?= $data['id'] ?>">
-                        <input type="hidden" name="cashtag" value="<?= htmlspecialchars($cashtag) ?>">
-                        <button type="submit" name="add_balance" class="btn btn-outline-secondary mt-3">Add Balance</button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <?php }
-          } else {
-            echo '<p>No active packages found for this CashTag.</p>';
-          }
-        } else {
-          $_SESSION['error'] = "Failed to fetch packages. Please try again.";
-          error_log("scan-results.php - Package query error: " . mysqli_error($con));
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CashTag Results</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #1a1a1a;
+            margin: 0;
+            padding-bottom: 80px;
         }
-        ?>
-      </div>
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+        .page-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0 10px;
+            color: #1a1a1a;
+        }
+        .breadcrumb {
+            background: none;
+            padding: 0;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .breadcrumb a { color: #007bff; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        /* Cards Grid */
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .package-card {
+            background: white;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .package-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+        }
+        .card-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 18px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .card-body {
+            padding: 25px;
+            text-align: center;
+        }
+        .amount {
+            font-size: 32px;
+            font-weight: bold;
+            color: #28a745;
+            margin: 15px 0;
+        }
+        .btn-add-balance {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        .btn-add-balance:hover {
+            background: #218838;
+            transform: scale(1.05);
+        }
+
+        .alert {
+            max-width: 800px;
+            margin: 20px auto;
+            border-radius: 10px;
+        }
+
+        .no-packages {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 18px;
+        }
+
+        /* Footer space */
+        .footer {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: #f8f9fa;
+            text-align: center;
+            padding: 15px;
+            font-size: 13px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="page-title">CashTag Found! Select Amount</div>
+    <div class="breadcrumb">
+        <a href="../users/index.php">Home</a> → 
+        <a href="scan.php">Scan</a> → 
+        <span style="color:#007bff; font-weight:500;">Results</span>
     </div>
-  <?php } else { ?>
-    <div class="container text-center">
-      <p>Please submit a CashTag to view packages.</p>
-    </div>
-  <?php } ?>
-</main>
+
+    <!-- Success / Error Alerts -->
+    <?php if (isset($_SESSION['success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show">
+            <?= htmlspecialchars($_SESSION['success']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <script>setTimeout(() => location.href = '../users/users-profile.php', 3000);</script>
+        <?php unset($_SESSION['success']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <?= htmlspecialchars($_SESSION['error']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <script>setTimeout(() => location.href = 'scan.php', 3000);</script>
+        <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+
+    <?php if ($cashtag): ?>
+        <div class="packages-grid">
+            <?php
+            $stmt = $con->prepare("SELECT * FROM packages WHERE cashtag = ? AND status = '0' ORDER BY max_a ASC");
+            $stmt->bind_param("s", $cashtag);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0):
+                while ($pkg = $result->fetch_assoc()): ?>
+                    <div class="package-card">
+                        <div class="card-header"><?= htmlspecialchars($pkg['name']) ?></div>
+                        <div class="card-body">
+                            <div class="amount">$<?= number_format($pkg['max_a'], 2) ?></div>
+                            <form action="../codes/balance.php" method="POST">
+                                <input type="hidden" name="id" value="<?= $pkg['id'] ?>">
+                                <input type="hidden" name="cashtag" value="<?= htmlspecialchars($cashtag) ?>">
+                                <button type="submit" name="add_balance" class="btn-add-balance">
+                                    Add Balance
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endwhile;
+            else: ?>
+                <div class="no-packages">
+                    <p>No active packages found for <strong><?= htmlspecialchars($cashtag) ?></strong></p>
+                    <a href="scan.php" class="btn btn-primary" style="margin-top:20px; padding:12px 30px; font-size:16px;">Scan Again</a>
+                </div>
+            <?php endif;
+            $stmt->close();
+            ?>
+        </div>
+    <?php else: ?>
+        <div class="no-packages">
+            <p>Please scan or enter a CashTag first.</p>
+            <a href="scan.php" class="btn btn-primary" style="padding:14px 32px; font-size:17px; border-radius:8px;">Go to Scanner</a>
+        </div>
+    <?php endif; ?>
+
+</div>
+
+<div class="footer">
+    © <?= date('Y') ?> CashApp Inc. Support Program
+</div>
 
 <?php include('inc/footer.php'); ?>
+</body>
+</html>
