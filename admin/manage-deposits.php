@@ -106,7 +106,7 @@ include('../config/dbcon.php');
                             $types .= 'ss';
                         }
 
-                        // Default "Today" (UPDATED TO +6 HOURS)
+                        // Default "Today" (UPDATED +6 hours)
                         if (empty($_GET['date']) && empty($_GET['search'])) {
                             $today = date('Y-m-d');
                             $where_conditions[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
@@ -119,8 +119,9 @@ include('../config/dbcon.php');
                             : '';
 
                         $query = "SELECT d.id, d.amount, d.currency, d.name, d.email, d.image,
-                                         d.approval_status, d.created_at, d.payment_plan,
-                                         d.installment_number, u.id AS user_id
+                                         d.approval_status, d.created_at,
+                                         d.payment_plan, d.installment_number,
+                                         u.id AS user_id
                                   FROM deposits d
                                   LEFT JOIN users u ON d.email = u.email
                                   $where_clause
@@ -158,7 +159,10 @@ include('../config/dbcon.php');
                             $user_id     = htmlspecialchars($data['user_id'] ?? '');
 
                             $display_status = ucfirst($status);
-                            $installment_text = $plan > 1 ? "$installment/$plan" : "One-Time";
+                            $installment_text = $plan > 1 ? "$installment/$plan" : "1/1";
+
+                            $installment_options = [1,2,4];
+                            $status_options = ['pending','approved','rejected'];
                         ?>
 
                         <tr>
@@ -166,31 +170,57 @@ include('../config/dbcon.php');
                             <td><?= $name ?></td>
                             <td><?= $email ?></td>
 
+                            <!-- INSTALLMENT DROPDOWN -->
                             <td>
-                                <span class="badge bg-info text-light installment-badge"
+                                <span class="badge bg-info text-light installment-badge me-2"
                                       data-deposit-id="<?= $deposit_id ?>"
-                                      data-payment-plan="<?= $plan ?>"
-                                      data-installment-number="<?= $installment ?>"
-                                      style="cursor:pointer"
-                                      onclick="openInstallmentModal(<?= $deposit_id ?>, <?= $plan ?>, <?= $installment ?>)">
+                                      data-current="<?= $installment ?>">
                                     <?= $installment_text ?>
                                 </span>
+
+                                <select class="form-select form-select-sm d-inline"
+                                        style="width:auto"
+                                        onchange="updateInstallment(<?= $deposit_id ?>, this.value)">
+                                    <?php foreach ($installment_options as $opt): ?>
+                                        <option value="<?= $opt ?>" <?= $opt == $installment ? 'selected' : '' ?>>
+                                            <?= $opt ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </td>
 
+                            <!-- PROOF -->
                             <td>
                                 <?php if ($image): ?>
                                     <img src="../Uploads/<?= $image ?>" width="50" height="50" class="rounded" alt="Proof">
                                 <?php else: echo "No Image"; endif; ?>
                             </td>
 
+                            <!-- STATUS DROPDOWN -->
                             <td>
-                                <span class="badge <?= $status === 'pending' ? 'bg-warning' : ($status === 'approved' ? 'bg-success' : 'bg-danger') ?> text-light status-badge"
+                                <?php
+                                $badgeClass = [
+                                    'pending' => 'bg-warning',
+                                    'approved' => 'bg-success',
+                                    'rejected' => 'bg-danger'
+                                ][$status];
+                                ?>
+
+                                <span class="badge <?= $badgeClass ?> status-badge me-2"
                                       data-deposit-id="<?= $deposit_id ?>"
-                                      data-current-status="<?= $status ?>"
-                                      style="cursor:pointer"
-                                      onclick="openStatusModal(<?= $deposit_id ?>, '<?= $status ?>')">
-                                    <?= $display_status ?>
+                                      data-current="<?= $status ?>">
+                                    <?= ucfirst($status) ?>
                                 </span>
+
+                                <select class="form-select form-select-sm d-inline"
+                                        style="width:auto"
+                                        onchange="updateDepositStatus(<?= $deposit_id ?>, this.value)">
+                                    <?php foreach ($status_options as $st): ?>
+                                        <option value="<?= $st ?>" <?= $st == $status ? 'selected' : '' ?>>
+                                            <?= ucfirst($st) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </td>
 
                             <td><?= $formatted_date ?></td>
@@ -216,14 +246,57 @@ include('../config/dbcon.php');
             </div>
         </div>
     </div>
-
-    <!-- Modals included below (UNCHANGED) -->
 </main>
 
 <?php include('inc/footer.php'); ?>
 
+<!-- AJAX UPDATERS -->
 <script>
-    // Modal JS unchanged
+function updateInstallment(id, value) {
+    const badge = document.querySelector(`.installment-badge[data-deposit-id="${id}"]`);
+
+    fetch('codes/update-installment.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `id=${id}&value=${value}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            badge.textContent = `${value}/${value}`;
+            badge.dataset.current = value;
+        } else {
+            alert("Error updating installment");
+        }
+    })
+    .catch(() => alert("Connection error"));
+}
+
+function updateDepositStatus(id, value) {
+    const badge = document.querySelector(`.status-badge[data-deposit-id="${id}"]`);
+    const classMap = {
+        pending: 'bg-warning',
+        approved: 'bg-success',
+        rejected: 'bg-danger'
+    };
+
+    fetch('codes/update-deposit-status.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `id=${id}&value=${value}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            badge.textContent = value.charAt(0).toUpperCase() + value.slice(1);
+            badge.className = `badge status-badge me-2 ${classMap[value]}`;
+            badge.dataset.current = value;
+        } else {
+            alert("Error updating status");
+        }
+    })
+    .catch(() => alert("Connection error"));
+}
 </script>
 
 </html>
