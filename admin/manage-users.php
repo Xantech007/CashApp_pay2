@@ -1,9 +1,12 @@
 <?php
+
 session_start();
+
 include('inc/header.php');
 include('inc/navbar.php');
 include('inc/sidebar.php');
 include('../config/dbcon.php');
+
 ?>
 
 <style>
@@ -13,6 +16,7 @@ include('../config/dbcon.php');
 </style>
 
 <main id="main" class="main">
+
     <div class="pagetitle">
         <h1>Manage Users</h1>
         <nav>
@@ -26,13 +30,16 @@ include('../config/dbcon.php');
 
     <div class="card">
         <div class="card-body">
+
             <!-- Filters -->
             <div class="row g-3 align-items-center mt-4 mb-4">
+
                 <div class="col-md-5">
                     <form method="GET" class="d-flex gap-2">
                         <div class="input-group">
                             <span class="input-group-text">Registration Date</span>
-                            <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
+                            <input type="date" name="date" class="form-control"
+                                   value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Go</button>
                         <a href="?" class="btn btn-outline-secondary">Today</a>
@@ -41,9 +48,11 @@ include('../config/dbcon.php');
 
                 <div class="col-md-5">
                     <form method="GET" class="d-flex gap-2">
-                        <input type="text" name="search" class="form-control" placeholder="Search name or email..."
+                        <input type="text" name="search" class="form-control"
+                               placeholder="Search name or email..."
                                value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
                         <button type="submit" class="btn btn-success">Search</button>
+
                         <?php if (!empty($_GET['search'])): ?>
                             <a href="?" class="btn btn-outline-danger">Clear</a>
                         <?php endif; ?>
@@ -62,10 +71,12 @@ include('../config/dbcon.php');
                         </strong>
                     </small>
                 </div>
+
             </div>
 
             <div class="table-responsive">
                 <table class="table table-borderless" id="usersTable">
+
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -78,8 +89,11 @@ include('../config/dbcon.php');
                             <th>Delete</th>
                         </tr>
                     </thead>
+
                     <tbody>
+
                         <?php
+
                         $where_conditions = [];
                         $params = [];
                         $types = '';
@@ -88,27 +102,34 @@ include('../config/dbcon.php');
                         if (!empty($_GET['search'])) {
                             $search = '%' . trim($_GET['search']) . '%';
                             $where_conditions[] = "(name LIKE ? OR email LIKE ?)";
-                            $params[] = $search; $params[] = $search;
+                            $params[] = $search;
+                            $params[] = $search;
                             $types .= 'ss';
                         }
-                        // Date filter
+
+                        // Date filter (UPDATED)
                         elseif (!empty($_GET['date'])) {
                             $date = date('Y-m-d', strtotime($_GET['date']));
-                            $where_conditions[] = "DATE(created_at) = ?";
+                            $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = ?";
                             $params[] = $date;
                             $types .= 's';
                         }
-                        // Default: today
+
+                        // Default: today (UPDATED)
                         else {
-                            $where_conditions[] = "DATE(created_at) = CURDATE()";
+                            $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = CURDATE()";
                         }
 
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-                        $query = "SELECT id, name, email, refered_by, image, verify, created_at 
-                                  FROM users 
-                                  $where_clause 
-                                  ORDER BY created_at DESC";
+                        // UPDATED: Add +9 hours to created_at
+                        $query = "
+                            SELECT id, name, email, refered_by, image, verify,
+                                   DATE_ADD(created_at, INTERVAL 9 HOUR) AS created_at
+                            FROM users
+                            $where_clause
+                            ORDER BY created_at DESC
+                        ";
 
                         $stmt = mysqli_prepare($con, $query);
                         if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
@@ -118,8 +139,11 @@ include('../config/dbcon.php');
                         if (mysqli_num_rows($result) == 0) {
                             echo "<tr><td colspan='8' class='text-center py-5 text-muted'>No users found.</td></tr>";
                         } else {
+
                             $grouped = [];
+
                             while ($user = mysqli_fetch_assoc($result)) {
+                                // DISPLAY TIME ALREADY FIXED BY SQL
                                 $regDate = date('d M Y', strtotime($user['created_at']));
                                 $grouped[$regDate][] = $user;
                             }
@@ -127,44 +151,53 @@ include('../config/dbcon.php');
                             foreach ($grouped as $date => $users) {
                                 $collapseId = 'group-' . preg_replace('/[^a-z0-9]/', '', strtolower($date));
                                 ?>
-                                <!-- Group Header -->
+
                                 <tr class="table-primary fw-bold bg-light">
                                     <td colspan="8">
-                                        <a class="text-dark text-decoration-none d-flex align-items-center" 
+                                        <a class="text-dark text-decoration-none d-flex align-items-center"
                                            data-bs-toggle="collapse" href="#<?= $collapseId ?>" role="button">
                                             <i class="bi bi-chevron-right me-2 transition-chevron"></i>
-                                            <?= $date ?> 
+                                            <?= $date ?>
                                             <span class="badge bg-primary ms-2"><?= count($users) ?> user<?= count($users)>1?'s':'' ?></span>
                                         </a>
                                     </td>
                                 </tr>
 
-                                <!-- Group Rows -->
                                 <tr class="collapse show" id="<?= $collapseId ?>">
                                     <td colspan="8" class="p-0">
                                         <table class="table table-sm table-hover mb-0">
-                                            <?php foreach ($users as $data):
-                                                $verify = (int)($data['verify'] ?? 0);
-                                                $statusText = ['Not Verified', 'Under Review', 'Verified', 'Partial'][$verify] ?? 'Not Verified';
-                                                $badgeClass = match($verify) {
-                                                    0 => 'bg-danger', 1 => 'bg-warning text-dark', 2 => 'bg-success', 3 => 'bg-purple', default => 'bg-danger'
-                                                };
-                                            ?>
+
+                                            <?php foreach ($users as $data): ?>
                                                 <tr>
+
                                                     <td><?= htmlspecialchars($data['id']) ?></td>
                                                     <td><?= htmlspecialchars($data['name']) ?></td>
                                                     <td><?= htmlspecialchars($data['email']) ?></td>
                                                     <td><?= htmlspecialchars($data['refered_by'] ?? '-') ?></td>
+
                                                     <td>
                                                         <img src="../Uploads/profile-picture/<?= htmlspecialchars($data['image'] ?? 'default.png') ?>"
                                                              width="50" height="50" class="rounded-circle object-fit-cover" alt="Profile">
                                                     </td>
+
                                                     <td>
+                                                        <?php
+                                                        $verify = (int)($data['verify'] ?? 0);
+                                                        $statusText = ['Not Verified', 'Under Review', 'Verified', 'Partial'][$verify] ?? 'Not Verified';
+                                                        $badgeClass = match($verify) {
+                                                            0 => 'bg-danger',
+                                                            1 => 'bg-warning text-dark',
+                                                            2 => 'bg-success',
+                                                            3 => 'bg-purple',
+                                                            default => 'bg-danger'
+                                                        };
+                                                        ?>
                                                         <span class="badge <?= $badgeClass ?> verify-badge me-2"
                                                               data-user-id="<?= $data['id'] ?>"
                                                               data-current="<?= $verify ?>">
                                                             <?= $statusText ?>
                                                         </span>
+
                                                         <select class="form-select form-select-sm d-inline-block" style="width:auto"
                                                                 onchange="updateVerify(<?= $data['id'] ?>, this.value)">
                                                             <option value="0" <?= $verify==0?'selected':'' ?>>Not Verified</option>
@@ -172,10 +205,13 @@ include('../config/dbcon.php');
                                                             <option value="3" <?= $verify==3?'selected':'' ?>>Partial</option>
                                                             <option value="2" <?= $verify==2?'selected':'' ?>>Verified</option>
                                                         </select>
+
                                                     </td>
+
                                                     <td>
                                                         <a href="edit-user?id=<?= $data['id'] ?>" class="btn btn-light btn-sm">Edit</a>
                                                     </td>
+
                                                     <td>
                                                         <form action="codes/users.php" method="POST" style="display:inline">
                                                             <input type="hidden" name="profile_pic" value="<?= htmlspecialchars($data['image'] ?? '') ?>">
@@ -186,19 +222,26 @@ include('../config/dbcon.php');
                                                             </button>
                                                         </form>
                                                     </td>
+
                                                 </tr>
                                             <?php endforeach; ?>
+
                                         </table>
                                     </td>
                                 </tr>
+
                                 <?php
                             }
                         }
+
                         mysqli_stmt_close($stmt);
+
                         ?>
+
                     </tbody>
                 </table>
             </div>
+
         </div>
     </div>
 </main>
@@ -210,7 +253,6 @@ function updateVerify(userId, newStatus) {
     newStatus = parseInt(newStatus);
     const badge = document.querySelector(`.verify-badge[data-user-id="${userId}"]`);
     const current = parseInt(badge.dataset.current);
-
     if (newStatus === current) return;
 
     fetch('codes/update-verify.php', {
@@ -237,4 +279,5 @@ function updateVerify(userId, newStatus) {
     });
 }
 </script>
+
 </html>
