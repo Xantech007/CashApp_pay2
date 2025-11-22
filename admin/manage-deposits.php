@@ -21,6 +21,7 @@ include('../config/dbcon.php');
     <div class="card">
         <div class="card-body">
 
+            <!-- Filters -->
             <div class="row g-3 align-items-center mt-4 mb-4">
 
                 <!-- Date Filter -->
@@ -29,7 +30,7 @@ include('../config/dbcon.php');
                         <div class="input-group">
                             <span class="input-group-text">Date</span>
                             <input type="date" name="date" class="form-control"
-                                   value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
+                                value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Go</button>
                         <a href="?" class="btn btn-outline-secondary">Today</a>
@@ -40,8 +41,8 @@ include('../config/dbcon.php');
                 <div class="col-md-5">
                     <form method="GET" class="d-flex gap-2">
                         <input type="text" name="search" class="form-control"
-                               placeholder="Search by name or email..."
-                               value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                            placeholder="Search by name or email..."
+                            value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
                         <button type="submit" class="btn btn-success">Search</button>
 
                         <?php if (!empty($_GET['search'])): ?>
@@ -50,7 +51,7 @@ include('../config/dbcon.php');
                     </form>
                 </div>
 
-                <!-- Showing Info -->
+                <!-- Showing Filter Info -->
                 <div class="col-md-2 text-end">
                     <small class="text-muted">
                         <?php
@@ -66,6 +67,7 @@ include('../config/dbcon.php');
                 </div>
             </div>
 
+            <!-- TABLE -->
             <div class="table-responsive">
                 <table class="table table-borderless" id="depositsTable">
                     <thead>
@@ -85,47 +87,45 @@ include('../config/dbcon.php');
                     <tbody>
                         <?php
 
-                        $where_conditions = [];
+                        /* FILTERS -------------------------------------- */
+                        $where = [];
                         $params = [];
                         $types = '';
 
-                        // Date filter (UPDATED TO +6 HOURS)
                         if (!empty($_GET['date']) && empty($_GET['search'])) {
-                            $date = date('Y-m-d', strtotime($_GET['date']));
-                            $where_conditions[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
-                            $params[] = $date;
+                            $d = date('Y-m-d', strtotime($_GET['date']));
+                            $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
+                            $params[] = $d;
                             $types .= 's';
                         }
 
-                        // Search overrides date
                         if (!empty($_GET['search'])) {
-                            $search = '%' . trim($_GET['search']) . '%';
-                            $where_conditions[] = "(d.name LIKE ? OR d.email LIKE ?)";
-                            $params[] = $search;
-                            $params[] = $search;
+                            $s = '%' . trim($_GET['search']) . '%';
+                            $where[] = "(d.name LIKE ? OR d.email LIKE ?)";
+                            $params[] = $s;
+                            $params[] = $s;
                             $types .= 'ss';
                         }
 
-                        // Default "Today" (UPDATED +6 hours)
                         if (empty($_GET['date']) && empty($_GET['search'])) {
                             $today = date('Y-m-d');
-                            $where_conditions[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
+                            $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
                             $params[] = $today;
                             $types .= 's';
                         }
 
-                        $where_clause = !empty($where_conditions)
-                            ? 'WHERE ' . implode(' AND ', $where_conditions)
-                            : '';
+                        $where_sql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
-                        $query = "SELECT d.id, d.amount, d.currency, d.name, d.email, d.image,
-                                         d.approval_status, d.created_at,
-                                         d.payment_plan, d.installment_number,
-                                         u.id AS user_id
-                                  FROM deposits d
-                                  LEFT JOIN users u ON d.email = u.email
-                                  $where_clause
-                                  ORDER BY d.created_at DESC";
+                        $query = "
+                            SELECT d.id, d.amount, d.currency, d.name, d.email, d.image,
+                                   d.approval_status, d.created_at,
+                                   d.payment_plan, d.installment_number,
+                                   u.id AS user_id
+                            FROM deposits d
+                            LEFT JOIN users u ON d.email = u.email
+                            $where_sql
+                            ORDER BY d.created_at DESC
+                        ";
 
                         $stmt = mysqli_prepare($con, $query);
                         if (!empty($params)) {
@@ -138,101 +138,102 @@ include('../config/dbcon.php');
                             echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No deposits found.</td></tr>";
                         }
 
-                        while ($data = mysqli_fetch_assoc($result)) {
+                        while ($row = mysqli_fetch_assoc($result)) {
+                            $dt = new DateTime($row['created_at']);
+                            $dt->modify('+6 hours');
 
-                            // DISPLAY FIX: ADD +6 HOURS
-                            $dateTime = new DateTime($data['created_at']);
-                            $dateTime->modify('+6 hours');
+                            $id = $row['id'];
+                            $amount = $row['amount'];
+                            $currency = $row['currency'] ?? '$';
+                            $name = $row['name'];
+                            $email = $row['email'];
+                            $img = $row['image'];
+                            $status = $row['approval_status'];
+                            $current = (int)$row['installment_number'];
+                            $total = (int)$row['payment_plan'];
+                            $user_id = $row['user_id'];
 
-                            $formatted_date = $dateTime->format('d M Y');
-                            $time = $dateTime->format('H:i');
-
-                            $deposit_id  = htmlspecialchars($data['id']);
-                            $amount      = htmlspecialchars($data['amount']);
-                            $currency    = htmlspecialchars($data['currency'] ?? '$');
-                            $name        = htmlspecialchars($data['name']);
-                            $email       = htmlspecialchars($data['email'] ?? 'No Email');
-                            $image       = htmlspecialchars($data['image']);
-                            $status      = htmlspecialchars($data['approval_status']);
-                            $plan        = (int)($data['payment_plan'] ?? 1);
-                            $installment = (int)($data['installment_number'] ?? 1);
-                            $user_id     = htmlspecialchars($data['user_id'] ?? '');
-
-                            $display_status = ucfirst($status);
-                            $installment_text = $plan > 1 ? "$installment/$plan" : "1/1";
-
-                            $installment_options = [1,2,4];
-                            $status_options = ['pending','approved','rejected'];
+                            $badge_status_class = [
+                                'pending' => 'bg-warning',
+                                'approved' => 'bg-success',
+                                'rejected' => 'bg-danger'
+                            ][$status];
                         ?>
 
                         <tr>
-                            <td><?= $currency ?><?= number_format($amount, 2) ?></td>
+                            <td><?= $currency . number_format($amount, 2) ?></td>
                             <td><?= $name ?></td>
                             <td><?= $email ?></td>
 
-                            <!-- INSTALLMENT DROPDOWN -->
+                            <!-- INSTALLMENT -->
                             <td>
-                                <span class="badge bg-info text-light installment-badge me-2"
-                                      data-deposit-id="<?= $deposit_id ?>"
-                                      data-current="<?= $installment ?>">
-                                    <?= $installment_text ?>
+                                <span class="badge bg-info text-light me-2"
+                                      id="badge-<?= $id ?>">
+                                      <?= $current . " / " . $total ?>
                                 </span>
 
-                                <select class="form-select form-select-sm d-inline"
+                                <!-- CURRENT -->
+                                <select class="form-select form-select-sm d-inline installment-current"
                                         style="width:auto"
-                                        onchange="updateInstallment(<?= $deposit_id ?>, this.value)">
-                                    <?php foreach ($installment_options as $opt): ?>
-                                        <option value="<?= $opt ?>" <?= $opt == $installment ? 'selected' : '' ?>>
-                                            <?= $opt ?>
+                                        data-id="<?= $id ?>"
+                                        onchange="updateCurrent(<?= $id ?>)">
+                                    <?php for ($i = 1; $i <= 4; $i++): ?>
+                                        <option value="<?= $i ?>" <?= ($current == $i ? 'selected' : '') ?>>
+                                            <?= $i ?>
                                         </option>
-                                    <?php endforeach; ?>
+                                    <?php endfor; ?>
+                                </select>
+
+                                <span class="mx-1">/</span>
+
+                                <!-- TOTAL -->
+                                <select class="form-select form-select-sm d-inline installment-total"
+                                        style="width:auto"
+                                        data-id="<?= $id ?>"
+                                        onchange="updateTotal(<?= $id ?>)">
+                                    <?php for ($i = 1; $i <= 4; $i++): ?>
+                                        <option value="<?= $i ?>" <?= ($total == $i ? 'selected' : '') ?>>
+                                            <?= $i ?>
+                                        </option>
+                                    <?php endfor; ?>
                                 </select>
                             </td>
 
                             <!-- PROOF -->
                             <td>
-                                <?php if ($image): ?>
-                                    <img src="../Uploads/<?= $image ?>" width="50" height="50" class="rounded" alt="Proof">
-                                <?php else: echo "No Image"; endif; ?>
+                                <?php if ($img): ?>
+                                    <img src="../Uploads/<?= $img ?>" width="50" height="50" class="rounded">
+                                <?php else: ?>
+                                    No Image
+                                <?php endif; ?>
                             </td>
 
-                            <!-- STATUS DROPDOWN -->
+                            <!-- STATUS -->
                             <td>
-                                <?php
-                                $badgeClass = [
-                                    'pending' => 'bg-warning',
-                                    'approved' => 'bg-success',
-                                    'rejected' => 'bg-danger'
-                                ][$status];
-                                ?>
-
-                                <span class="badge <?= $badgeClass ?> status-badge me-2"
-                                      data-deposit-id="<?= $deposit_id ?>"
-                                      data-current="<?= $status ?>">
+                                <span class="badge <?= $badge_status_class ?> me-2"
+                                      id="status-badge-<?= $id ?>">
                                     <?= ucfirst($status) ?>
                                 </span>
 
                                 <select class="form-select form-select-sm d-inline"
                                         style="width:auto"
-                                        onchange="updateDepositStatus(<?= $deposit_id ?>, this.value)">
-                                    <?php foreach ($status_options as $st): ?>
-                                        <option value="<?= $st ?>" <?= $st == $status ? 'selected' : '' ?>>
-                                            <?= ucfirst($st) ?>
-                                        </option>
-                                    <?php endforeach; ?>
+                                        onchange="updateDepositStatus(<?= $id ?>, this.value)">
+                                    <option value="pending"  <?= $status=='pending'?'selected':'' ?>>Pending</option>
+                                    <option value="approved" <?= $status=='approved'?'selected':'' ?>>Approved</option>
+                                    <option value="rejected" <?= $status=='rejected'?'selected':'' ?>>Rejected</option>
                                 </select>
                             </td>
 
-                            <td><?= $formatted_date ?></td>
-                            <td><?= $time ?></td>
+                            <td><?= $dt->format('d M Y') ?></td>
+                            <td><?= $dt->format('H:i') ?></td>
 
                             <td>
-                                <?php if ($image): ?>
-                                    <a href="../Uploads/<?= $image ?>" download class="btn btn-light btn-sm me-1">Download</a>
+                                <?php if ($img): ?>
+                                    <a href="../Uploads/<?= $img ?>" download class="btn btn-light btn-sm me-1">Download</a>
                                 <?php endif; ?>
 
                                 <?php if ($user_id): ?>
-                                    <a href="edit-user.php?id=<?= urlencode($user_id) ?>" class="btn btn-light btn-sm">Edit</a>
+                                    <a href="edit-user.php?id=<?= $user_id ?>" class="btn btn-light btn-sm">Edit</a>
                                 <?php else: ?>
                                     <span class="text-muted">No User</span>
                                 <?php endif; ?>
@@ -250,53 +251,91 @@ include('../config/dbcon.php');
 
 <?php include('inc/footer.php'); ?>
 
-<!-- AJAX UPDATERS -->
+<!-- AJAX SCRIPTS -->
 <script>
-function updateInstallment(id, value) {
-    const badge = document.querySelector(`.installment-badge[data-deposit-id="${id}"]`);
 
-    fetch('codes/update-installment.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `id=${id}&value=${value}`
+function validateInstallments(id) {
+    let c = document.querySelector(`.installment-current[data-id="${id}"]`).value;
+    let t = document.querySelector(`.installment-total[data-id="${id}"]`).value;
+
+    if (parseInt(c) > parseInt(t)) {
+        alert("Current installment cannot be greater than total.");
+        return false;
+    }
+    return true;
+}
+
+function updateCurrent(id) {
+
+    if (!validateInstallments(id)) {
+        location.reload();
+        return;
+    }
+
+    let current = document.querySelector(`.installment-current[data-id="${id}"]`).value;
+
+    fetch("codes/update-installment-current.php", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `id=${id}&current=${current}`
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            badge.textContent = `${value}/${value}`;
-            badge.dataset.current = value;
-        } else {
-            alert("Error updating installment");
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            document.getElementById(`badge-${id}`).innerText =
+                current + " / " + d.total;
         }
+    });
+}
+
+function updateTotal(id) {
+
+    if (!validateInstallments(id)) {
+        location.reload();
+        return;
+    }
+
+    let total = document.querySelector(`.installment-total[data-id="${id}"]`).value;
+
+    fetch("codes/update-installment-total.php", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `id=${id}&total=${total}`
     })
-    .catch(() => alert("Connection error"));
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            document.getElementById(`badge-${id}`).innerText =
+                d.current + " / " + total;
+        }
+    });
 }
 
 function updateDepositStatus(id, value) {
-    const badge = document.querySelector(`.status-badge[data-deposit-id="${id}"]`);
-    const classMap = {
-        pending: 'bg-warning',
-        approved: 'bg-success',
-        rejected: 'bg-danger'
-    };
 
-    fetch('codes/update-deposit-status.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `id=${id}&value=${value}`
+    fetch("codes/update-deposit-status.php", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `id=${id}&status=${value}`
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            badge.textContent = value.charAt(0).toUpperCase() + value.slice(1);
-            badge.className = `badge status-badge me-2 ${classMap[value]}`;
-            badge.dataset.current = value;
-        } else {
-            alert("Error updating status");
+    .then(r => r.json())
+    .then(d => {
+
+        if (d.success) {
+            const badge = document.getElementById(`status-badge-${id}`);
+
+            badge.innerText = value.charAt(0).toUpperCase() + value.slice(1);
+
+            badge.className =
+                `badge me-2 ${
+                    value === 'approved' ? 'bg-success' :
+                    value === 'pending'  ? 'bg-warning' :
+                                           'bg-danger'
+                }`;
         }
-    })
-    .catch(() => alert("Connection error"));
+    });
 }
+
 </script>
 
 </html>
