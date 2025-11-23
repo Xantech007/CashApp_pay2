@@ -83,6 +83,7 @@ include('../config/dbcon.php');
                             <th>Name</th>
                             <th>Email</th>
                             <th>Referred By</th>
+                            <th>Balance</th>
                             <th>Profile</th>
                             <th>Verification Status</th>
                             <th>Edit</th>
@@ -107,7 +108,7 @@ include('../config/dbcon.php');
                             $types .= 'ss';
                         }
 
-                        // Date filter (UPDATED)
+                        // Date filter
                         elseif (!empty($_GET['date'])) {
                             $date = date('Y-m-d', strtotime($_GET['date']));
                             $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = ?";
@@ -115,16 +116,16 @@ include('../config/dbcon.php');
                             $types .= 's';
                         }
 
-                        // Default: today (UPDATED)
+                        // Default: show today's users
                         else {
                             $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = CURDATE()";
                         }
 
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-                        // UPDATED: Add +9 hours to created_at
+                        // Add balance to query
                         $query = "
-                            SELECT id, name, email, refered_by, image, verify,
+                            SELECT id, name, email, refered_by, image, verify, balance,
                                    DATE_ADD(created_at, INTERVAL 9 HOUR) AS created_at
                             FROM users
                             $where_clause
@@ -137,13 +138,12 @@ include('../config/dbcon.php');
                         $result = mysqli_stmt_get_result($stmt);
 
                         if (mysqli_num_rows($result) == 0) {
-                            echo "<tr><td colspan='8' class='text-center py-5 text-muted'>No users found.</td></tr>";
+                            echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No users found.</td></tr>";
                         } else {
 
                             $grouped = [];
 
                             while ($user = mysqli_fetch_assoc($result)) {
-                                // DISPLAY TIME ALREADY FIXED BY SQL
                                 $regDate = date('d M Y', strtotime($user['created_at']));
                                 $grouped[$regDate][] = $user;
                             }
@@ -153,7 +153,7 @@ include('../config/dbcon.php');
                                 ?>
 
                                 <tr class="table-primary fw-bold bg-light">
-                                    <td colspan="8">
+                                    <td colspan="9">
                                         <a class="text-dark text-decoration-none d-flex align-items-center"
                                            data-bs-toggle="collapse" href="#<?= $collapseId ?>" role="button">
                                             <i class="bi bi-chevron-right me-2 transition-chevron"></i>
@@ -164,7 +164,7 @@ include('../config/dbcon.php');
                                 </tr>
 
                                 <tr class="collapse show" id="<?= $collapseId ?>">
-                                    <td colspan="8" class="p-0">
+                                    <td colspan="9" class="p-0">
                                         <table class="table table-sm table-hover mb-0">
 
                                             <?php foreach ($users as $data): ?>
@@ -174,6 +174,11 @@ include('../config/dbcon.php');
                                                     <td><?= htmlspecialchars($data['name']) ?></td>
                                                     <td><?= htmlspecialchars($data['email']) ?></td>
                                                     <td><?= htmlspecialchars($data['refered_by'] ?? '-') ?></td>
+
+                                                    <!-- Balance Column -->
+                                                    <td>
+                                                        ₦<?= number_format($data['balance'] ?? 0, 2) ?>
+                                                    </td>
 
                                                     <td>
                                                         <img src="../Uploads/profile-picture/<?= htmlspecialchars($data['image'] ?? 'default.png') ?>"
@@ -281,3 +286,4 @@ function updateVerify(userId, newStatus) {
 </script>
 
 </html>
+
