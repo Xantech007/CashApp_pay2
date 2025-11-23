@@ -177,7 +177,7 @@ include('../config/dbcon.php');
 
                                                     <!-- Balance Column -->
                                                     <td>
-                                                        ₦<?= number_format($data['balance'] ?? 0, 2) ?>
+                                                        $<?= number_format($data['balance'] ?? 0, 2) ?>
                                                     </td>
 
                                                     <td>
