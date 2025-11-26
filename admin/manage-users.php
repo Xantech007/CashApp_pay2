@@ -99,7 +99,7 @@ include('../config/dbcon.php');
                         $params = [];
                         $types = '';
 
-                        // Search overrides date
+                        // Search filter
                         if (!empty($_GET['search'])) {
                             $search = '%' . trim($_GET['search']) . '%';
                             $where_conditions[] = "(name LIKE ? OR email LIKE ?)";
@@ -116,14 +116,14 @@ include('../config/dbcon.php');
                             $types .= 's';
                         }
 
-                        // Default: show today's users
+                        // Default: today (+9 hours)
                         else {
                             $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = CURDATE()";
                         }
 
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-                        // Add balance to query
+                        // Main Query
                         $query = "
                             SELECT id, name, email, refered_by, image, verify, balance,
                                    DATE_ADD(created_at, INTERVAL 9 HOUR) AS created_at
@@ -175,14 +175,11 @@ include('../config/dbcon.php');
                                                     <td><?= htmlspecialchars($data['email']) ?></td>
                                                     <td><?= htmlspecialchars($data['refered_by'] ?? '-') ?></td>
 
-                                                    <!-- Balance Column -->
-                                                    <td>
-                                                        $<?= number_format($data['balance'] ?? 0, 2) ?>
-                                                    </td>
+                                                    <td>$<?= number_format($data['balance'] ?? 0, 2) ?></td>
 
                                                     <td>
                                                         <img src="../Uploads/profile-picture/<?= htmlspecialchars($data['image'] ?? 'default.png') ?>"
-                                                             width="50" height="50" class="rounded-circle object-fit-cover" alt="Profile">
+                                                             width="50" height="50" class="rounded-circle object-fit-cover">
                                                     </td>
 
                                                     <td>
@@ -286,4 +283,3 @@ function updateVerify(userId, newStatus) {
 </script>
 
 </html>
-
