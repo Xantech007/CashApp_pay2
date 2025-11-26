@@ -60,7 +60,7 @@ include('../config/dbcon.php');
                         } elseif (!empty($_GET['date'])) {
                             echo "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>";
                         } else {
-                            echo "<strong>Today</strong>";
+                            echo "<strong>Today (+6 hrs)</strong>";
                         }
                         ?>
                     </small>
@@ -92,6 +92,7 @@ include('../config/dbcon.php');
                         $params = [];
                         $types = '';
 
+                        /* DATE FILTER ---------------------------------- */
                         if (!empty($_GET['date']) && empty($_GET['search'])) {
                             $d = date('Y-m-d', strtotime($_GET['date']));
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
@@ -99,6 +100,7 @@ include('../config/dbcon.php');
                             $types .= 's';
                         }
 
+                        /* SEARCH FILTER -------------------------------- */
                         if (!empty($_GET['search'])) {
                             $s = '%' . trim($_GET['search']) . '%';
                             $where[] = "(d.name LIKE ? OR d.email LIKE ?)";
@@ -107,8 +109,9 @@ include('../config/dbcon.php');
                             $types .= 'ss';
                         }
 
+                        /* DEFAULT = TODAY + 6 HOURS ------------------- */
                         if (empty($_GET['date']) && empty($_GET['search'])) {
-                            $today = date('Y-m-d');
+                            $today = date('Y-m-d', strtotime('+6 hours'));
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
                             $params[] = $today;
                             $types .= 's';
@@ -139,6 +142,8 @@ include('../config/dbcon.php');
                         }
 
                         while ($row = mysqli_fetch_assoc($result)) {
+
+                            /* DISPLAY +6 HOURS ------------------------- */
                             $dt = new DateTime($row['created_at']);
                             $dt->modify('+6 hours');
 
