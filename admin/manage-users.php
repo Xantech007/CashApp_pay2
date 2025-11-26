@@ -118,7 +118,8 @@ include('../config/dbcon.php');
 
                         // Default: today (+9 hours)
                         else {
-                            $where_conditions[] = "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = CURDATE()";
+                            $where_conditions[] =
+                                "DATE(DATE_ADD(created_at, INTERVAL 9 HOUR)) = DATE(DATE_ADD(NOW(), INTERVAL 9 HOUR))";
                         }
 
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
