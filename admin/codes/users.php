@@ -22,23 +22,23 @@ if (isset($_POST['update_user'])) {
     // Validation
     if (!is_numeric($user_id) || empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['error'] = "Please check the required fields.";
-        header("Location: ../edit_user.php?id=$user_id");
+        header("Location: ../edit-user.php?id=$user_id");
         exit();
     }
 
     if (!is_numeric($balance) || $balance < 0 || !is_numeric($referal_bonus) || $referal_bonus < 0) {
         $_SESSION['error'] = "Balance and bonus cannot be negative.";
-        header("Location: ../edit_user.php?id=$user_id");
+        header("Location: ../edit-user.php?id=$user_id");
         exit();
     }
 
     if ($payment_amount !== null && $payment_amount < 0) {
         $_SESSION['error'] = "Payment amount cannot be negative.";
-        header("Location: ../edit_user.php?id=$user_id");
+        header("Location: ../edit-user.php?id=$user_id");
         exit();
     }
 
-    // Build the query dynamically (compatible with PHP 5.6+)
+    // Build query
     $sql = "UPDATE users SET 
             email = ?, 
             balance = ?, 
@@ -68,9 +68,7 @@ if (isset($_POST['update_user'])) {
     $types .= "i";
 
     $stmt = $con->prepare($sql);
-    $stmt->bind_param($types, ...$params);   // Works on PHP 7.0+
-    // If your server is very old (<7.0), replace the line above with this:
-    // call_user_func_array([$stmt, 'bind_param'], array_merge([&$types], array_map(function(&$v){return $v;}, $params)));
+    $stmt->bind_param($types, ...$params);
 
     if ($stmt->execute()) {
         $_SESSION['success'] = "User updated successfully.";
@@ -79,7 +77,8 @@ if (isset($_POST['update_user'])) {
     }
     $stmt->close();
 
-    header("Location: ../edit_user.php?id=$user_id");
+    // Correct redirect: edit-user.php (with hyphen)
+    header("Location: ../edit-user.php?id=$user_id");
     exit();
 }
 
