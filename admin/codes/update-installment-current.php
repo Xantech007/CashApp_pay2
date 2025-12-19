@@ -6,7 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int)($_POST['id'] ?? 0);
     $current = (int)($_POST['current'] ?? 1);
 
-    if ($id <= 0 || $current < 1) {
+    if ($id <= 0 || $current < 1 || $current > 4) {
         echo json_encode(['success' => false]);
         exit;
     }
