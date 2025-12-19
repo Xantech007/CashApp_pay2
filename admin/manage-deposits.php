@@ -45,9 +45,9 @@ include('../config/dbcon.php');
                 <div class="col-md-2 text-end">
                     <small class="text-muted">
                         <?php
-                        echo !empty($_GET['search']) ? "<strong>" . htmlspecialchars($_GET['search']) . "</strong>" :
-                             (!empty($_GET['date']) ? "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>" :
-                             "<strong>Today (+6 hrs)</strong>");
+                        if (!empty($_GET['search'])) echo "<strong>" . htmlspecialchars($_GET['search']) . "</strong>";
+                        elseif (!empty($_GET['date'])) echo "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>";
+                        else echo "<strong>Today (+6 hrs)</strong>";
                         ?>
                     </small>
                 </div>
@@ -71,8 +71,9 @@ include('../config/dbcon.php');
                     </thead>
                     <tbody>
                         <?php
-                        // Same filters as before...
+                        // Same filtering logic as before...
                         $where = []; $params = []; $types = '';
+
                         if (!empty($_GET['date']) && empty($_GET['search'])) {
                             $d = date('Y-m-d', strtotime($_GET['date']));
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
@@ -88,19 +89,20 @@ include('../config/dbcon.php');
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
                             $params[] = $today; $types .= 's';
                         }
+
                         $where_sql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
                         $query = "
                             SELECT d.id, d.amount, d.currency, d.name, d.email, d.image,
                                    d.approval_status, d.created_at,
-                                   COALESCE(u.payment_plan, 1) AS total_installments,
-                                   u.current_installment,
-                                   u.id AS user_id
+                                   d.installment_number, d.payment_plan AS deposit_plan,
+                                   u.payment_plan AS user_plan, u.id AS user_id
                             FROM deposits d
                             LEFT JOIN users u ON d.email = u.email
                             $where_sql
                             ORDER BY d.created_at DESC
                         ";
+
                         $stmt = mysqli_prepare($con, $query);
                         if (!empty($params)) mysqli_stmt_bind_param($stmt, $types, ...$params);
                         mysqli_stmt_execute($stmt);
@@ -123,23 +125,23 @@ include('../config/dbcon.php');
                             $status     = $row['approval_status'];
                             $user_id    = $row['user_id'];
 
-                            // Total from users table (fallback 1)
-                            $total      = in_array($row['total_installments'], [1,2,4]) ? (int)$row['total_installments'] : 1;
+                            // Total installments: from users table, fallback to deposit_plan
+                            $total = max(1, (int)($row['user_plan'] ?? $row['deposit_plan'] ?? 1));
+                            // Restrict to allowed values
+                            $allowed_totals = [1, 2, 4];
+                            if (!in_array($total, $allowed_totals)) $total = 1;
 
-                            // Current installment: use stored value, fallback to computed if null
-                            $current    = $row['current_installment'] ?? 1;
-                            if ($current > $total) $current = $total; // safety
+                            // Current installment from this deposit row
+                            $current = (int)$row['installment_number'];
+                            if ($current < 1 || $current > $total) $current = 1;
 
-                            $badge_class = [
-                                'pending' => 'bg-warning',
-                                'approved' => 'bg-success',
-                                'rejected' => 'bg-danger'
-                            ][$status];
+                            $badge_class = ['pending'=>'bg-warning', 'approved'=>'bg-success', 'rejected'=>'bg-danger'][$status];
                         ?>
                         <tr>
                             <td><?= $currency . number_format($amount, 2) ?></td>
                             <td><?= htmlspecialchars($name) ?></td>
                             <td><?= htmlspecialchars($email) ?></td>
+                            <!-- INSTALLMENT: Current / Total (both editable) -->
                             <td>
                                 <span class="badge bg-info text-light me-2" id="badge-<?= $id ?>">
                                     <?= $current ?> / <?= $total ?>
@@ -147,40 +149,38 @@ include('../config/dbcon.php');
 
                                 <!-- Editable Current -->
                                 <select class="form-select form-select-sm d-inline installment-current"
-                                        style="width: auto;"
-                                        data-email="<?= htmlspecialchars($email) ?>"
-                                        data-deposit-id="<?= $id ?>"
-                                        onchange="updateCurrentInstallment(this, <?= $id ?>, <?= $total ?>)">
-                                    <?php for ($i = 1; $i <= $total; $i++): ?>
-                                        <option value="<?= $i ?>" <?= $current == $i ? 'selected' : '' ?>><?= $i ?></option>
-                                    <?php endfor; ?>
+                                        style="width:60px" data-id="<?= $id ?>" data-total="<?= $total ?>"
+                                        onchange="updateCurrent(<?= $id ?>, this.value, <?= $total ?>)">
+                                    <?php foreach ([1,2,3,4] as $i): ?>
+                                        <option value="<?= $i ?>" <?= $i == $current ? 'selected' : '' ?>
+                                            <?= $i > $total ? 'disabled' : '' ?>><?= $i ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                                 <span class="mx-1">/</span>
 
-                                <!-- Editable Total (only 1, 2, 4) -->
+                                <!-- Editable Total (only 1,2,4) -->
                                 <select class="form-select form-select-sm d-inline installment-total"
-                                        style="width: auto;"
-                                        data-email="<?= htmlspecialchars($email) ?>"
-                                        data-deposit-id="<?= $id ?>"
+                                        style="width:60px" data-email="<?= htmlspecialchars($email) ?>"
                                         data-old-total="<?= $total ?>"
-                                        onchange="updateTotalInstallments(this, <?= $id ?>)">
-                                    <?php foreach ([1, 2, 4] as $val): ?>
-                                        <option value="<?= $val ?>" <?= $total == $val ? 'selected' : '' ?>><?= $val ?></option>
+                                        onchange="updateTotal(this, <?= $id ?>)">
+                                    <?php foreach ([1,2,4] as $t): ?>
+                                        <option value="<?= $t ?>" <?= $t == $total ? 'selected' : '' ?>><?= $t ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </td>
+                            <!-- PROOF -->
                             <td>
-                                <?php if ($img && file_exists('../Uploads/' . basename($img))): ?>
+                                <?php if ($img && file_exists('../Uploads/'.basename($img))): ?>
                                     <img src="../Uploads/<?= htmlspecialchars(basename($img)) ?>" width="50" height="50" class="rounded">
-                                <?php else: ?>
-                                    No Image
                                 <?php endif; ?>
+                                <?php if (!$img): ?> No Image <?php endif; ?>
                             </td>
+                            <!-- STATUS -->
                             <td>
                                 <span class="badge <?= $badge_class ?> me-2" id="status-badge-<?= $id ?>">
                                     <?= ucfirst($status) ?>
                                 </span>
-                                <select class="form-select form-select-sm d-inline"
+                                <select class="form-select form-select-sm d-inline" style="width:auto"
                                         onchange="updateDepositStatus(<?= $id ?>, this.value)">
                                     <option value="pending" <?= $status=='pending'?'selected':'' ?>>Pending</option>
                                     <option value="approved" <?= $status=='approved'?'selected':'' ?>>Approved</option>
@@ -190,13 +190,11 @@ include('../config/dbcon.php');
                             <td><?= $dt->format('d M Y') ?></td>
                             <td><?= $dt->format('H:i') ?></td>
                             <td>
-                                <?php if ($img && file_exists('../Uploads/' . basename($img))): ?>
+                                <?php if ($img && file_exists('../Uploads/'.basename($img))): ?>
                                     <a href="../Uploads/<?= htmlspecialchars(basename($img)) ?>" download class="btn btn-light btn-sm me-1">Download</a>
                                 <?php endif; ?>
                                 <?php if ($user_id): ?>
                                     <a href="edit-user.php?id=<?= $user_id ?>" class="btn btn-light btn-sm">Edit User</a>
-                                <?php else: ?>
-                                    <span class="text-muted">No User</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -210,21 +208,26 @@ include('../config/dbcon.php');
 
 <?php include('inc/footer.php'); ?>
 
+<!-- AJAX SCRIPTS -->
 <script>
-// Update Current Installment
-function updateCurrentInstallment(select, depositId, maxTotal) {
-    const newCurrent = parseInt(select.value);
-    const email = select.dataset.email;
+// Update Current Installment (on specific deposit)
+function updateCurrent(id, newCurrent, total) {
+    newCurrent = parseInt(newCurrent);
+    if (newCurrent > total) {
+        alert("Current installment cannot be greater than total installments.");
+        location.reload();
+        return;
+    }
 
-    fetch("codes/update-current-installment.php", {
+    fetch("codes/update-installment-current.php", {
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body: `email=${encodeURIComponent(email)}&current=${newCurrent}`
+        body: `id=${id}&current=${newCurrent}`
     })
     .then(r => r.json())
     .then(d => {
         if (d.success) {
-            document.getElementById(`badge-${depositId}`).innerText = newCurrent + " / " + maxTotal;
+            document.getElementById(`badge-${id}`).innerText = newCurrent + " / " + total;
         } else {
             alert("Failed to update current installment.");
             location.reload();
@@ -232,19 +235,15 @@ function updateCurrentInstallment(select, depositId, maxTotal) {
     });
 }
 
-// Update Total Installments (1, 2, or 4 only)
-function updateTotalInstallments(select, depositId) {
-    const newTotal = parseInt(select.value);
-    const oldTotal = parseInt(select.dataset.oldTotal);
-    const email = select.dataset.email;
+// Update Total Installments (updates users.payment_plan)
+function updateTotal(selectElem, depositId) {
+    const email = selectElem.dataset.email;
+    const newTotal = parseInt(selectElem.value);
+    const oldTotal = parseInt(selectElem.dataset.oldTotal);
 
-    // If reducing total and current > new total, warn
-    const currentSelect = select.parentElement.querySelector('.installment-current');
-    const currentVal = parseInt(currentSelect.value);
-
-    if (currentVal > newTotal) {
-        if (!confirm(`Current installment (${currentVal}) exceeds new total (${newTotal}). It will be reset to ${newTotal}. Continue?`)) {
-            select.value = oldTotal;
+    if (newTotal < oldTotal) {
+        if (!confirm(`Reducing total from ${oldTotal} to ${newTotal} may affect existing deposits. Continue?`)) {
+            selectElem.value = oldTotal;
             return;
         }
     }
@@ -257,16 +256,16 @@ function updateTotalInstallments(select, depositId) {
     .then(r => r.json())
     .then(d => {
         if (d.success) {
-            alert("Total installments updated.");
-            location.reload(); // Refresh to update current dropdown options
+            alert("Total installments updated successfully.");
+            location.reload();
         } else {
-            alert("Error updating total.");
-            select.value = oldTotal;
+            alert("Error updating total: " + (d.message || "Unknown"));
+            selectElem.value = oldTotal;
         }
     });
 }
 
-// Update Deposit Status
+// Status update (unchanged)
 function updateDepositStatus(id, value) {
     fetch("codes/update-deposit-status.php", {
         method: "POST",
@@ -277,9 +276,9 @@ function updateDepositStatus(id, value) {
     .then(d => {
         if (d.success) {
             const badge = document.getElementById(`status-badge-${id}`);
-            badge.innerText = value.charAt(0).toUpperCase() + value.slice(1);
-            badge.className = `badge me-2 ${value === 'approved' ? 'bg-success' : value === 'pending' ? 'bg-warning' : 'bg-danger'}`;
-            if (value === 'approved') setTimeout(() => location.reload(), 1000);
+            const text = value.charAt(0).toUpperCase() + value.slice(1);
+            badge.innerText = text;
+            badge.className = `badge me-2 ${value==='approved'?'bg-success':(value==='pending'?'bg-warning':'bg-danger')}`;
         }
     });
 }
