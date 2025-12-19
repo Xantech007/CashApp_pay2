@@ -18,9 +18,8 @@ include('../config/dbcon.php');
     </div>
     <div class="card">
         <div class="card-body">
-            <!-- Filters -->
+            <!-- Filters (unchanged) -->
             <div class="row g-3 align-items-center mt-4 mb-4">
-                <!-- Date Filter -->
                 <div class="col-md-5">
                     <form method="GET" class="d-flex gap-2">
                         <div class="input-group">
@@ -32,7 +31,6 @@ include('../config/dbcon.php');
                         <a href="?" class="btn btn-outline-secondary">Today</a>
                     </form>
                 </div>
-                <!-- Search Filter -->
                 <div class="col-md-5">
                     <form method="GET" class="d-flex gap-2">
                         <input type="text" name="search" class="form-control"
@@ -44,17 +42,12 @@ include('../config/dbcon.php');
                         <?php endif; ?>
                     </form>
                 </div>
-                <!-- Showing Filter Info -->
                 <div class="col-md-2 text-end">
                     <small class="text-muted">
                         <?php
-                        if (!empty($_GET['search'])) {
-                            echo "<strong>" . htmlspecialchars($_GET['search']) . "</strong>";
-                        } elseif (!empty($_GET['date'])) {
-                            echo "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>";
-                        } else {
-                            echo "<strong>Today (+6 hrs)</strong>";
-                        }
+                        echo !empty($_GET['search']) ? "<strong>" . htmlspecialchars($_GET['search']) . "</strong>" :
+                             (!empty($_GET['date']) ? "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>" :
+                             "<strong>Today (+6 hrs)</strong>");
                         ?>
                     </small>
                 </div>
@@ -78,49 +71,38 @@ include('../config/dbcon.php');
                     </thead>
                     <tbody>
                         <?php
-                        /* FILTERS */
-                        $where = [];
-                        $params = [];
-                        $types = '';
-
+                        // Same filters as before...
+                        $where = []; $params = []; $types = '';
                         if (!empty($_GET['date']) && empty($_GET['search'])) {
                             $d = date('Y-m-d', strtotime($_GET['date']));
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
-                            $params[] = $d;
-                            $types .= 's';
+                            $params[] = $d; $types .= 's';
                         }
                         if (!empty($_GET['search'])) {
                             $s = '%' . trim($_GET['search']) . '%';
                             $where[] = "(d.name LIKE ? OR d.email LIKE ?)";
-                            $params[] = $s;
-                            $params[] = $s;
-                            $types .= 'ss';
+                            $params[] = $s; $params[] = $s; $types .= 'ss';
                         }
                         if (empty($_GET['date']) && empty($_GET['search'])) {
                             $today = date('Y-m-d', strtotime('+6 hours'));
                             $where[] = "DATE(DATE_ADD(d.created_at, INTERVAL 6 HOUR)) = ?";
-                            $params[] = $today;
-                            $types .= 's';
+                            $params[] = $today; $types .= 's';
                         }
-
                         $where_sql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
 
                         $query = "
                             SELECT d.id, d.amount, d.currency, d.name, d.email, d.image,
                                    d.approval_status, d.created_at,
-                                   d.payment_plan AS deposit_plan,
-                                   u.payment_plan AS user_plan,
+                                   COALESCE(u.payment_plan, 1) AS total_installments,
+                                   u.current_installment,
                                    u.id AS user_id
                             FROM deposits d
                             LEFT JOIN users u ON d.email = u.email
                             $where_sql
                             ORDER BY d.created_at DESC
                         ";
-
                         $stmt = mysqli_prepare($con, $query);
-                        if (!empty($params)) {
-                            mysqli_stmt_bind_param($stmt, $types, ...$params);
-                        }
+                        if (!empty($params)) mysqli_stmt_bind_param($stmt, $types, ...$params);
                         mysqli_stmt_execute($stmt);
                         $result = mysqli_stmt_get_result($stmt);
 
@@ -128,69 +110,27 @@ include('../config/dbcon.php');
                             echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No deposits found.</td></tr>";
                         }
 
-                        // Pre-fetch approved installments per email + payment_plan to compute current
-                        $approved_counts = [];
-                        $email_plans = [];
-
-                        $all_rows = [];
                         while ($row = mysqli_fetch_assoc($result)) {
-                            $all_rows[] = $row;
-                            $email = $row['email'];
-                            $plan = $row['user_plan'] ?? $row['deposit_plan'] ?? 1;
-                            $email_plans[$email] = $plan;
-                        }
-
-                        if (!empty($all_rows)) {
-                            $emails = array_unique(array_column($all_rows, 'email'));
-                            $in_placeholders = str_repeat('?,', count($emails) - 1) . '?';
-                            $types_in = str_repeat('s', count($emails));
-
-                            $approved_query = "
-                                SELECT email, payment_plan, COUNT(DISTINCT installment_number) AS approved_count
-                                FROM deposits
-                                WHERE email IN ($in_placeholders)
-                                  AND approval_status = 'approved'
-                                GROUP BY email, payment_plan
-                            ";
-                            $approved_stmt = mysqli_prepare($con, $approved_query);
-                            mysqli_stmt_bind_param($approved_stmt, $types_in, ...$emails);
-                            mysqli_stmt_execute($approved_stmt);
-                            $approved_res = mysqli_stmt_get_result($approved_stmt);
-
-                            while ($ar = mysqli_fetch_assoc($approved_res)) {
-                                $key = $ar['email'] . '|' . $ar['payment_plan'];
-                                $approved_counts[$key] = (int)$ar['approved_count'];
-                            }
-                            mysqli_stmt_close($approved_stmt);
-                        }
-
-                        foreach ($all_rows as $row) {
                             $dt = new DateTime($row['created_at']);
                             $dt->modify('+6 hours');
 
-                            $id = $row['id'];
-                            $amount = $row['amount'];
-                            $currency = $row['currency'] ?? '$';
-                            $name = $row['name'];
-                            $email = $row['email'];
-                            $img = $row['image'];
-                            $status = $row['approval_status'];
-                            $user_id = $row['user_id'];
+                            $id         = $row['id'];
+                            $amount     = $row['amount'];
+                            $currency   = $row['currency'] ?? '$';
+                            $name       = $row['name'];
+                            $email      = $row['email'];
+                            $img        = $row['image'];
+                            $status     = $row['approval_status'];
+                            $user_id    = $row['user_id'];
 
-                            // Determine total installments
-                            $total_installments = max(1, (int)($row['user_plan'] ?? $row['deposit_plan'] ?? 1));
+                            // Total from users table (fallback 1)
+                            $total      = in_array($row['total_installments'], [1,2,4]) ? (int)$row['total_installments'] : 1;
 
-                            // Determine current (next) installment
-                            $plan_key = $email . '|' . $total_installments;
-                            $approved_so_far = $approved_counts[$plan_key] ?? 0;
-                            $current_installment = $approved_so_far + 1;
+                            // Current installment: use stored value, fallback to computed if null
+                            $current    = $row['current_installment'] ?? 1;
+                            if ($current > $total) $current = $total; // safety
 
-                            // If all are approved, still show total as total
-                            if ($current_installment > $total_installments) {
-                                $current_installment = $total_installments;
-                            }
-
-                            $badge_status_class = [
+                            $badge_class = [
                                 'pending' => 'bg-warning',
                                 'approved' => 'bg-success',
                                 'rejected' => 'bg-danger'
@@ -200,29 +140,35 @@ include('../config/dbcon.php');
                             <td><?= $currency . number_format($amount, 2) ?></td>
                             <td><?= htmlspecialchars($name) ?></td>
                             <td><?= htmlspecialchars($email) ?></td>
-                            <!-- INSTALLMENT -->
                             <td>
-                                <span class="badge bg-info text-light me-2"
-                                      id="badge-<?= $id ?>">
-                                    <?= $current_installment ?> / <?= $total_installments ?>
+                                <span class="badge bg-info text-light me-2" id="badge-<?= $id ?>">
+                                    <?= $current ?> / <?= $total ?>
                                 </span>
-                                <span class="text-muted small">Next:</span>
-                                <strong><?= $current_installment ?></strong>
-                                <span class="mx-1">/</span>
-                                <!-- Editable Total Installments -->
-                                <select class="form-select form-select-sm d-inline installment-total"
-                                        style="width:auto"
+
+                                <!-- Editable Current -->
+                                <select class="form-select form-select-sm d-inline installment-current"
+                                        style="width: auto;"
                                         data-email="<?= htmlspecialchars($email) ?>"
-                                        data-current-total="<?= $total_installments ?>"
-                                        onchange="updateTotalInstallments(this, <?= $id ?>)">
-                                    <?php for ($i = 1; $i <= 10; $i++): // Allow up to 10 ?>
-                                        <option value="<?= $i ?>" <?= ($total_installments == $i ? 'selected' : '') ?>>
-                                            <?= $i ?>
-                                        </option>
+                                        data-deposit-id="<?= $id ?>"
+                                        onchange="updateCurrentInstallment(this, <?= $id ?>, <?= $total ?>)">
+                                    <?php for ($i = 1; $i <= $total; $i++): ?>
+                                        <option value="<?= $i ?>" <?= $current == $i ? 'selected' : '' ?>><?= $i ?></option>
                                     <?php endfor; ?>
                                 </select>
+                                <span class="mx-1">/</span>
+
+                                <!-- Editable Total (only 1, 2, 4) -->
+                                <select class="form-select form-select-sm d-inline installment-total"
+                                        style="width: auto;"
+                                        data-email="<?= htmlspecialchars($email) ?>"
+                                        data-deposit-id="<?= $id ?>"
+                                        data-old-total="<?= $total ?>"
+                                        onchange="updateTotalInstallments(this, <?= $id ?>)">
+                                    <?php foreach ([1, 2, 4] as $val): ?>
+                                        <option value="<?= $val ?>" <?= $total == $val ? 'selected' : '' ?>><?= $val ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </td>
-                            <!-- PROOF -->
                             <td>
                                 <?php if ($img && file_exists('../Uploads/' . basename($img))): ?>
                                     <img src="../Uploads/<?= htmlspecialchars(basename($img)) ?>" width="50" height="50" class="rounded">
@@ -230,14 +176,11 @@ include('../config/dbcon.php');
                                     No Image
                                 <?php endif; ?>
                             </td>
-                            <!-- STATUS -->
                             <td>
-                                <span class="badge <?= $badge_status_class ?> me-2"
-                                      id="status-badge-<?= $id ?>">
+                                <span class="badge <?= $badge_class ?> me-2" id="status-badge-<?= $id ?>">
                                     <?= ucfirst($status) ?>
                                 </span>
                                 <select class="form-select form-select-sm d-inline"
-                                        style="width:auto"
                                         onchange="updateDepositStatus(<?= $id ?>, this.value)">
                                     <option value="pending" <?= $status=='pending'?'selected':'' ?>>Pending</option>
                                     <option value="approved" <?= $status=='approved'?'selected':'' ?>>Approved</option>
@@ -257,7 +200,7 @@ include('../config/dbcon.php');
                                 <?php endif; ?>
                             </td>
                         </tr>
-                        <?php } ?>
+                        <?php } mysqli_stmt_close($stmt); ?>
                     </tbody>
                 </table>
             </div>
@@ -267,16 +210,41 @@ include('../config/dbcon.php');
 
 <?php include('inc/footer.php'); ?>
 
-<!-- AJAX SCRIPTS -->
 <script>
-function updateTotalInstallments(selectElem, depositId) {
-    const email = selectElem.dataset.email;
-    const newTotal = selectElem.value;
-    const oldTotal = selectElem.dataset.currentTotal;
+// Update Current Installment
+function updateCurrentInstallment(select, depositId, maxTotal) {
+    const newCurrent = parseInt(select.value);
+    const email = select.dataset.email;
 
-    if (newTotal < oldTotal) {
-        if (!confirm(`Reducing total from ${oldTotal} to ${newTotal} may cause inconsistencies. Continue?`)) {
-            selectElem.value = oldTotal;
+    fetch("codes/update-current-installment.php", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `email=${encodeURIComponent(email)}&current=${newCurrent}`
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            document.getElementById(`badge-${depositId}`).innerText = newCurrent + " / " + maxTotal;
+        } else {
+            alert("Failed to update current installment.");
+            location.reload();
+        }
+    });
+}
+
+// Update Total Installments (1, 2, or 4 only)
+function updateTotalInstallments(select, depositId) {
+    const newTotal = parseInt(select.value);
+    const oldTotal = parseInt(select.dataset.oldTotal);
+    const email = select.dataset.email;
+
+    // If reducing total and current > new total, warn
+    const currentSelect = select.parentElement.querySelector('.installment-current');
+    const currentVal = parseInt(currentSelect.value);
+
+    if (currentVal > newTotal) {
+        if (!confirm(`Current installment (${currentVal}) exceeds new total (${newTotal}). It will be reset to ${newTotal}. Continue?`)) {
+            select.value = oldTotal;
             return;
         }
     }
@@ -289,19 +257,16 @@ function updateTotalInstallments(selectElem, depositId) {
     .then(r => r.json())
     .then(d => {
         if (d.success) {
-            alert("Payment plan updated successfully.");
-            location.reload(); // Refresh to recalculate current installments
+            alert("Total installments updated.");
+            location.reload(); // Refresh to update current dropdown options
         } else {
-            alert("Error: " + (d.message || "Failed to update."));
-            selectElem.value = oldTotal;
+            alert("Error updating total.");
+            select.value = oldTotal;
         }
-    })
-    .catch(() => {
-        alert("Network error.");
-        selectElem.value = oldTotal;
     });
 }
 
+// Update Deposit Status
 function updateDepositStatus(id, value) {
     fetch("codes/update-deposit-status.php", {
         method: "POST",
@@ -312,16 +277,9 @@ function updateDepositStatus(id, value) {
     .then(d => {
         if (d.success) {
             const badge = document.getElementById(`status-badge-${id}`);
-            const text = value.charAt(0).toUpperCase() + value.slice(1);
-            badge.innerText = text;
-            badge.className = `badge me-2 ${
-                value === 'approved' ? 'bg-success' :
-                value === 'pending' ? 'bg-warning' : 'bg-danger'
-            }`;
-            // Optionally reload if status change affects current installment
-            if (value === 'approved') {
-                setTimeout(() => location.reload(), 800);
-            }
+            badge.innerText = value.charAt(0).toUpperCase() + value.slice(1);
+            badge.className = `badge me-2 ${value === 'approved' ? 'bg-success' : value === 'pending' ? 'bg-warning' : 'bg-danger'}`;
+            if (value === 'approved') setTimeout(() => location.reload(), 1000);
         }
     });
 }
