@@ -60,7 +60,7 @@ include('../config/dbcon.php');
                         } elseif (!empty($_GET['date'])) {
                             echo "<strong>" . date('d M Y', strtotime($_GET['date'])) . "</strong>";
                         } else {
-                            echo "<strong>Today (+6 hrs)</strong>";
+                            echo "<strong>Today</strong>";
                         }
                         ?>
                     </small>
