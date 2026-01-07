@@ -295,11 +295,20 @@ include('inc/navbar.php');
                                     <td><?= htmlspecialchars($data['channel']) ?></td>
                                     <td><?= htmlspecialchars($data['channel_name']) ?></td>
                                     <td><?= htmlspecialchars($data['channel_number']) ?></td>
-                                    <?php if ($data['status'] == 0) { ?>
-                                        <td><span class="badge bg-warning text-light">Pending</span></td>
-                                    <?php } else { ?>
-                                        <td><span class="badge bg-success text-light">Completed</span></td>
-                                    <?php } ?>
+                                    <td>
+                                        <?php 
+                                            if ($data['status'] == 0) {
+                                                echo '<span class="badge bg-warning text-light">Pending</span>';
+                                            } elseif ($data['status'] == 1) {
+                                                echo '<span class="badge bg-success text-light">Completed</span>';
+                                            } elseif ($data['status'] == 2) {
+                                                echo '<span class="badge bg-danger text-light">Rejected</span>';
+                                            } else {
+                                                echo '<span class="badge bg-secondary text-light">Unknown</span>';
+                                            }
+                                        ?>
+                                    </td>
+
                                     <td><?= date('d-M-Y', strtotime($data['created_at'])) ?></td>
                                     <td>
                                         <form action="../codes/withdrawals.php" method="POST">
