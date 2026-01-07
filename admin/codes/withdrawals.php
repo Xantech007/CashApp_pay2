@@ -1,6 +1,6 @@
 <?php
 session_start();
-include('../../config/dbcon.php');
+include('../config/dbcon.php');
 
 header('Content-Type: application/json');
 
