@@ -9,10 +9,10 @@ include('../config/dbcon.php');
     .bg-purple { background-color: #6f42c1 !important; color: white !important; }
     .transition-chevron { transition: transform 0.25s ease; }
     .collapse.show .transition-chevron { transform: rotate(90deg); }
-    .badge-pending { background-color: #ffc107; color: black; }
+    .badge-pending    { background-color: #ffc107; color: black; }
     .badge-processing { background-color: #0dcaf0; color: white; }
-    .badge-completed { background-color: #198754; }
-    .badge-rejected { background-color: #dc3545; }
+    .badge-completed  { background-color: #198754; }
+    .badge-rejected   { background-color: #dc3545; }
 </style>
 
 <main id="main" class="main">
@@ -35,8 +35,7 @@ include('../config/dbcon.php');
                     <form method="GET" class="d-flex gap-2">
                         <div class="input-group">
                             <span class="input-group-text">Date</span>
-                            <input type="date" name="date" class="form-control"
-                                   value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
+                            <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Filter</button>
                         <a href="?" class="btn btn-outline-secondary">Today</a>
@@ -45,9 +44,7 @@ include('../config/dbcon.php');
 
                 <div class="col-md-4">
                     <form method="GET" class="d-flex gap-2">
-                        <input type="text" name="search" class="form-control"
-                               placeholder="Search email or amount..."
-                               value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                        <input type="text" name="search" class="form-control" placeholder="Search email or amount..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
                         <button type="submit" class="btn btn-success">Search</button>
                         <?php if (!empty($_GET['search'])): ?>
                             <a href="?" class="btn btn-outline-danger">Clear</a>
@@ -89,43 +86,33 @@ include('../config/dbcon.php');
                         $params = [];
                         $types = '';
 
-                        // Search filter
                         if (!empty($_GET['search'])) {
                             $search = '%' . trim($_GET['search']) . '%';
-                            $where_conditions[] = "(w.email LIKE ? OR w.amount LIKE ?)";
+                            $where_conditions[] = "(w.email LIKE ? OR CAST(w.amount AS CHAR) LIKE ?)";
                             $params[] = $search;
                             $params[] = $search;
                             $types .= 'ss';
-                        }
-                        // Date filter
-                        elseif (!empty($_GET['date'])) {
+                        } elseif (!empty($_GET['date'])) {
                             $date = date('Y-m-d', strtotime($_GET['date']));
                             $where_conditions[] = "DATE(w.created_at) = ?";
                             $params[] = $date;
                             $types .= 's';
-                        }
-                        // Default: today
-                        else {
+                        } else {
                             $where_conditions[] = "DATE(w.created_at) = CURDATE()";
                         }
 
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-                        // Main Query
                         $query = "
                             SELECT w.id, w.email, w.amount, w.channel, w.channel_name, 
-                                   w.channel_number, w.status, w.created_at,
-                                   u.balance
+                                   w.channel_number, w.status, w.created_at
                             FROM withdrawals w
-                            LEFT JOIN users u ON w.email = u.email
                             $where_clause
                             ORDER BY w.created_at DESC
                         ";
 
                         $stmt = mysqli_prepare($con, $query);
-                        if ($params) {
-                            mysqli_stmt_bind_param($stmt, $types, ...$params);
-                        }
+                        if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
                         mysqli_stmt_execute($stmt);
                         $result = mysqli_stmt_get_result($stmt);
 
@@ -138,7 +125,7 @@ include('../config/dbcon.php');
                                 $grouped[$reqDate][] = $row;
                             }
 
-                            foreach ($grouped as $date => $withdrawals): 
+                            foreach ($grouped as $date => $withdrawals):
                                 $collapseId = 'group-' . preg_replace('/[^a-z0-9]/', '', strtolower($date));
                             ?>
                                 <tr class="table-primary fw-bold bg-light">
@@ -155,7 +142,7 @@ include('../config/dbcon.php');
                                 <tr class="collapse show" id="<?= $collapseId ?>">
                                     <td colspan="9" class="p-0">
                                         <table class="table table-sm table-hover mb-0">
-                                            <?php foreach ($withdrawals as $data): 
+                                            <?php foreach ($withdrawals as $data):
                                                 $status = (int)$data['status'];
                                                 $statusBadge = match($status) {
                                                     0 => '<span class="badge badge-pending">Pending</span>',
@@ -176,15 +163,11 @@ include('../config/dbcon.php');
                                                     <td><?= date('d M Y • H:i', strtotime($data['created_at'])) ?></td>
                                                     <td class="action-cell">
                                                         <?php if ($status === 0): ?>
-                                                            <button class="btn btn-sm btn-success approve-btn me-1"
-                                                                    data-id="<?= $data['id'] ?>">Approve</button>
-                                                            <button class="btn btn-sm btn-danger reject-btn"
-                                                                    data-id="<?= $data['id'] ?>">Reject</button>
+                                                            <button class="btn btn-sm btn-success approve-btn me-1" data-id="<?= $data['id'] ?>">Approve</button>
+                                                            <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
                                                         <?php elseif ($status === 1): ?>
-                                                            <button class="btn btn-sm btn-success complete-btn me-1"
-                                                                    data-id="<?= $data['id'] ?>">Mark Complete</button>
-                                                            <button class="btn btn-sm btn-danger reject-btn"
-                                                                    data-id="<?= $data['id'] ?>">Reject</button>
+                                                            <button class="btn btn-sm btn-success complete-btn me-1" data-id="<?= $data['id'] ?>">Mark Complete</button>
+                                                            <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
                                                         <?php else: ?>
                                                             <small class="text-muted">No action</small>
                                                         <?php endif; ?>
@@ -194,7 +177,7 @@ include('../config/dbcon.php');
                                         </table>
                                     </td>
                                 </tr>
-                            <?php endforeach; 
+                            <?php endforeach;
                         }
                         mysqli_stmt_close($stmt);
                         ?>
@@ -208,14 +191,14 @@ include('../config/dbcon.php');
 <?php include('inc/footer.php'); ?>
 
 <script>
-// Approve / Reject / Complete handler
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (!btn) return;
 
-    const action = btn.classList.contains('approve-btn') ? 'approve' :
-                   btn.classList.contains('reject-btn') ? 'reject' :
-                   btn.classList.contains('complete-btn') ? 'complete' : null;
+    let action = null;
+    if (btn.classList.contains('approve-btn')) action = 'approve';
+    else if (btn.classList.contains('complete-btn')) action = 'complete';
+    else if (btn.classList.contains('reject-btn')) action = 'reject';
 
     if (!action) return;
 
@@ -232,30 +215,28 @@ document.addEventListener('click', function(e) {
         if (data.success) {
             const row = btn.closest('tr');
             const statusCell = row.querySelector('.status-cell');
+            const actionCell = row.querySelector('.action-cell');
 
             if (action === 'approve') {
                 statusCell.innerHTML = '<span class="badge badge-processing">Processing</span>';
-                row.querySelector('.action-cell').innerHTML = `
+                actionCell.innerHTML = `
                     <button class="btn btn-sm btn-success complete-btn me-1" data-id="${id}">Mark Complete</button>
                     <button class="btn btn-sm btn-danger reject-btn" data-id="${id}">Reject</button>
                 `;
             } else if (action === 'complete') {
                 statusCell.innerHTML = '<span class="badge badge-completed">Completed</span>';
-                row.querySelector('.action-cell').innerHTML = '<small class="text-muted">No action</small>';
+                actionCell.innerHTML = '<small class="text-muted">No action</small>';
             } else if (action === 'reject') {
                 statusCell.innerHTML = '<span class="badge badge-rejected">Rejected</span>';
-                row.querySelector('.action-cell').innerHTML = '<small class="text-muted">No action</small>';
+                actionCell.innerHTML = '<small class="text-muted">No action</small>';
             }
 
-            // Optional: show toast/notification
             alert(data.message || 'Action completed successfully');
         } else {
             alert(data.message || 'Failed to update withdrawal');
         }
     })
-    .catch(() => {
-        alert('Connection error. Please try again.');
-    });
+    .catch(() => alert('Connection error. Please try again.'));
 });
 </script>
 </html>
