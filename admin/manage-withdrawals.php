@@ -5,13 +5,14 @@ include('inc/navbar.php');
 include('inc/sidebar.php');
 include('../config/dbcon.php');
 ?>
+
 <style>
     .bg-purple { background-color: #6f42c1 !important; color: white !important; }
     .transition-chevron { transition: transform 0.25s ease; }
     .collapse.show .transition-chevron { transform: rotate(90deg); }
-    .badge-pending    { background-color: #ffc107; color: black; }
-    .badge-approved   { background-color: #198754; }
-    .badge-rejected   { background-color: #dc3545; }
+    .badge-pending { background-color: #ffc107; color: black; }
+    .badge-approved { background-color: #198754; }
+    .badge-rejected { background-color: #dc3545; }
 </style>
 
 <main id="main" class="main">
@@ -28,7 +29,6 @@ include('../config/dbcon.php');
 
     <div class="card">
         <div class="card-body">
-
             <!-- Filters -->
             <div class="row g-3 align-items-center mt-4 mb-4">
                 <div class="col-md-4">
@@ -41,7 +41,6 @@ include('../config/dbcon.php');
                         <a href="?" class="btn btn-outline-secondary">Today</a>
                     </form>
                 </div>
-
                 <div class="col-md-4">
                     <form method="GET" class="d-flex gap-2">
                         <input type="text" name="search" class="form-control" placeholder="Search email or amount..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
@@ -51,7 +50,6 @@ include('../config/dbcon.php');
                         <?php endif; ?>
                     </form>
                 </div>
-
                 <div class="col-md-4 text-end">
                     <small class="text-muted">
                         Showing: <strong>
@@ -104,15 +102,17 @@ include('../config/dbcon.php');
                         $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
                         $query = "
-                            SELECT w.id, w.email, w.amount, w.channel, w.channel_name, 
-                                   w.channel_number, w.status, w.created_at
+                            SELECT w.id, w.email, w.amount, w.channel, w.channel_name,
+                                   w.channel_number, w.status, w.created_at, w.currency
                             FROM withdrawals w
                             $where_clause
                             ORDER BY w.created_at DESC
                         ";
 
                         $stmt = mysqli_prepare($con, $query);
-                        if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
+                        if ($params) {
+                            mysqli_stmt_bind_param($stmt, $types, ...$params);
+                        }
                         mysqli_stmt_execute($stmt);
                         $result = mysqli_stmt_get_result($stmt);
 
@@ -121,18 +121,27 @@ include('../config/dbcon.php');
                         } else {
                             while ($data = mysqli_fetch_assoc($result)) {
                                 $status = (int)$data['status'];
-
                                 $statusBadge = match ($status) {
                                     0 => '<span class="badge badge-pending">Pending</span>',
                                     1 => '<span class="badge badge-approved">Approved</span>',
                                     2 => '<span class="badge badge-rejected">Rejected</span>',
                                     default => '<span class="badge bg-secondary">Unknown</span>'
                                 };
+
+                                // Currency fallback to $ if not set
+                                $currency = $data['currency'] ?? '$';
+                                // Optional: you can add more mapping here if you store currency codes
+                                // e.g. USD → $, EUR → €, NGN → ₦, etc.
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($data['id']) ?></td>
                             <td><?= htmlspecialchars($data['email']) ?></td>
-                            <td><strong>$<?= number_format($data['amount'], 2) ?></strong></td>
+                            <td>
+                                <strong>
+                                    <?= htmlspecialchars($currency) ?>
+                                    <?= number_format($data['amount'], 2) ?>
+                                </strong>
+                            </td>
                             <td><?= htmlspecialchars($data['channel'] ?? '-') ?></td>
                             <td><?= htmlspecialchars($data['channel_name'] ?? '-') ?></td>
                             <td><?= htmlspecialchars($data['channel_number'] ?? '-') ?></td>
@@ -187,14 +196,15 @@ document.addEventListener('click', function(e) {
         row.querySelector('.action-cell').innerHTML = '<small class="text-muted">No action</small>';
 
         if (action === 'approve') {
-            row.querySelector('.status-cell').innerHTML =
+            row.querySelector('.status-cell').innerHTML = 
                 '<span class="badge badge-approved">Approved</span>';
         } else {
-            row.querySelector('.status-cell').innerHTML =
+            row.querySelector('.status-cell').innerHTML = 
                 '<span class="badge badge-rejected">Rejected</span>';
         }
     })
     .catch(() => alert('Connection error'));
 });
 </script>
+</body>
 </html>
