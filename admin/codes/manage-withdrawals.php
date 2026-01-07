@@ -48,7 +48,7 @@ try {
         $stmt = mysqli_prepare(
             $con,
             "UPDATE withdrawals 
-             SET status = 1, processed_at = NOW() 
+             SET status = 1, updated_at = NOW() 
              WHERE id = ? AND status = 0"
         );
         mysqli_stmt_bind_param($stmt, "i", $id);
@@ -87,7 +87,7 @@ try {
         $stmt = mysqli_prepare(
             $con,
             "UPDATE withdrawals 
-             SET status = 2, processed_at = NOW() 
+             SET status = 2, updated_at = NOW() 
              WHERE id = ? AND status = 0"
         );
         mysqli_stmt_bind_param($stmt, "i", $id);
