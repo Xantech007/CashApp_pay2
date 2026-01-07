@@ -16,11 +16,10 @@ if ($id <= 0 || !in_array($action, ['approve', 'reject'], true)) {
     exit;
 }
 
-/* ✅ START TRANSACTION (procedural-safe) */
 mysqli_begin_transaction($con);
 
 try {
-    // Lock row
+    // Lock withdrawal row
     $stmt = mysqli_prepare(
         $con,
         "SELECT status, email, amount FROM withdrawals WHERE id = ? FOR UPDATE"
@@ -39,25 +38,25 @@ try {
         throw new Exception('Withdrawal already processed');
     }
 
-    /* ===== APPROVE ===== */
+    /* ========= APPROVE ========= */
     if ($action === 'approve') {
         $stmt = mysqli_prepare(
             $con,
-            "UPDATE withdrawals SET status = 1 WHERE id = ?"
+            "UPDATE withdrawals SET status = 1 WHERE id = ? AND status = 0"
         );
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
 
         if (mysqli_stmt_affected_rows($stmt) !== 1) {
-            throw new Exception('Approve failed');
+            throw new Exception('Approve failed (status changed)');
         }
 
         mysqli_stmt_close($stmt);
     }
 
-    /* ===== REJECT ===== */
+    /* ========= REJECT ========= */
     if ($action === 'reject') {
-        // Refund user
+        // Refund user balance
         $stmt = mysqli_prepare(
             $con,
             "UPDATE users SET balance = balance + ? WHERE email = ?"
@@ -74,25 +73,27 @@ try {
         // Update withdrawal status
         $stmt = mysqli_prepare(
             $con,
-            "UPDATE withdrawals SET status = 2 WHERE id = ?"
+            "UPDATE withdrawals SET status = 2 WHERE id = ? AND status = 0"
         );
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
 
         if (mysqli_stmt_affected_rows($stmt) !== 1) {
-            throw new Exception('Reject failed');
+            throw new Exception('Reject failed (status changed)');
         }
 
         mysqli_stmt_close($stmt);
     }
 
     mysqli_commit($con);
-
     echo json_encode(['success' => true]);
     exit;
 
 } catch (Exception $e) {
     mysqli_rollback($con);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
     exit;
 }
