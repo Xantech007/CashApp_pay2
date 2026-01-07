@@ -130,7 +130,7 @@ if (isset($_POST['withdraw'])) {
 
         if ($update_stmt->execute()) {
             $_SESSION['success'] = "Withdrawal request of USD " . number_format($amount, 2) . " submitted successfully!\n" .
-                                 "You will receive approximately " . $target_currency . " " . number_format($received_amount, 2);
+                                 "Amount to receive " . $target_currency . " " . number_format($received_amount, 2);
             header("Location: ../users/withdrawals.php");
             exit(0);
         } else {
