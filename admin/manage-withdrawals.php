@@ -29,40 +29,59 @@ include('../config/dbcon.php');
 
     <div class="card">
         <div class="card-body">
+
             <!-- Filters -->
             <div class="row g-3 align-items-center mt-4 mb-4">
+
+                <!-- Date / Today / All -->
                 <div class="col-md-4">
                     <form method="GET" class="d-flex gap-2">
                         <div class="input-group">
                             <span class="input-group-text">Date</span>
-                            <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
+                            <input type="date" name="date" class="form-control"
+                                   value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Filter</button>
                         <a href="?" class="btn btn-outline-secondary">Today</a>
+                        <a href="?view=all" class="btn btn-outline-dark">All</a>
                     </form>
                 </div>
+
+                <!-- Search -->
                 <div class="col-md-4">
                     <form method="GET" class="d-flex gap-2">
-                        <input type="text" name="search" class="form-control" placeholder="Search email or amount..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                        <input type="text" name="search" class="form-control"
+                               placeholder="Search email or amount..."
+                               value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
                         <button type="submit" class="btn btn-success">Search</button>
                         <?php if (!empty($_GET['search'])): ?>
                             <a href="?" class="btn btn-outline-danger">Clear</a>
                         <?php endif; ?>
                     </form>
                 </div>
+
+                <!-- Showing -->
                 <div class="col-md-4 text-end">
                     <small class="text-muted">
-                        Showing: <strong>
+                        Showing:
+                        <strong>
                             <?php
-                            if (!empty($_GET['search'])) echo 'Search: ' . htmlspecialchars($_GET['search']);
-                            elseif (!empty($_GET['date'])) echo date('d M Y', strtotime($_GET['date']));
-                            else echo 'Today';
+                            if (!empty($_GET['search'])) {
+                                echo 'Search: ' . htmlspecialchars($_GET['search']);
+                            } elseif (!empty($_GET['date'])) {
+                                echo date('d M Y', strtotime($_GET['date']));
+                            } elseif (!empty($_GET['view']) && $_GET['view'] === 'all') {
+                                echo 'All Withdrawals';
+                            } else {
+                                echo 'Today';
+                            }
                             ?>
                         </strong>
                     </small>
                 </div>
             </div>
 
+            <!-- Table -->
             <div class="table-responsive">
                 <table class="table table-borderless">
                     <thead>
@@ -79,88 +98,99 @@ include('../config/dbcon.php');
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $where_conditions = [];
-                        $params = [];
-                        $types = '';
 
-                        if (!empty($_GET['search'])) {
-                            $search = '%' . trim($_GET['search']) . '%';
-                            $where_conditions[] = "(w.email LIKE ? OR CAST(w.amount AS CHAR) LIKE ?)";
-                            $params[] = $search;
-                            $params[] = $search;
-                            $types .= 'ss';
-                        } elseif (!empty($_GET['date'])) {
-                            $date = date('Y-m-d', strtotime($_GET['date']));
-                            $where_conditions[] = "DATE(w.created_at) = ?";
-                            $params[] = $date;
-                            $types .= 's';
-                        } else {
-                            $where_conditions[] = "DATE(w.created_at) = CURDATE()";
-                        }
+<?php
+$where_conditions = [];
+$params = [];
+$types = '';
 
-                        $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+if (!empty($_GET['search'])) {
+    $search = '%' . trim($_GET['search']) . '%';
+    $where_conditions[] = "(w.email LIKE ? OR CAST(w.amount AS CHAR) LIKE ?)";
+    $params[] = $search;
+    $params[] = $search;
+    $types .= 'ss';
 
-                        $query = "
-                            SELECT w.id, w.email, w.amount, w.channel, w.channel_name,
-                                   w.channel_number, w.status, w.created_at, w.currency
-                            FROM withdrawals w
-                            $where_clause
-                            ORDER BY w.created_at DESC
-                        ";
+} elseif (!empty($_GET['date'])) {
+    $date = date('Y-m-d', strtotime($_GET['date']));
+    $where_conditions[] = "DATE(w.created_at) = ?";
+    $params[] = $date;
+    $types .= 's';
 
-                        $stmt = mysqli_prepare($con, $query);
-                        if ($params) {
-                            mysqli_stmt_bind_param($stmt, $types, ...$params);
-                        }
-                        mysqli_stmt_execute($stmt);
-                        $result = mysqli_stmt_get_result($stmt);
+} elseif (!empty($_GET['view']) && $_GET['view'] === 'all') {
+    // Show all withdrawals (no filter)
+} else {
+    // Default: Today
+    $where_conditions[] = "DATE(w.created_at) = CURDATE()";
+}
 
-                        if (mysqli_num_rows($result) == 0) {
-                            echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No withdrawal requests found.</td></tr>";
-                        } else {
-                            while ($data = mysqli_fetch_assoc($result)) {
-                                $status = (int)$data['status'];
-                                $statusBadge = match ($status) {
-                                    0 => '<span class="badge badge-pending">Pending</span>',
-                                    1 => '<span class="badge badge-approved">Approved</span>',
-                                    2 => '<span class="badge badge-rejected">Rejected</span>',
-                                    default => '<span class="badge bg-secondary">Unknown</span>'
-                                };
+$where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-                                // Currency fallback to $ if not set
-                                $currency = $data['currency'] ?? '$';
-                                // Optional: you can add more mapping here if you store currency codes
-                                // e.g. USD → $, EUR → €, NGN → ₦, etc.
-                        ?>
-                        <tr>
-                            <td><?= htmlspecialchars($data['id']) ?></td>
-                            <td><?= htmlspecialchars($data['email']) ?></td>
-                            <td>
-                                <strong>
-                                    <?= htmlspecialchars($currency) ?>
-                                    <?= number_format($data['amount'], 2) ?>
-                                </strong>
-                            </td>
-                            <td><?= htmlspecialchars($data['channel'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($data['channel_name'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($data['channel_number'] ?? '-') ?></td>
-                            <td class="status-cell"><?= $statusBadge ?></td>
-                            <td><?= date('d M Y • H:i', strtotime($data['created_at'])) ?></td>
-                            <td class="action-cell">
-                                <?php if ($status === 0): ?>
-                                    <button class="btn btn-sm btn-success approve-btn" data-id="<?= $data['id'] ?>">Approve</button>
-                                    <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
-                                <?php else: ?>
-                                    <small class="text-muted">No action</small>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php
-                            }
-                        }
-                        mysqli_stmt_close($stmt);
-                        ?>
+$query = "
+    SELECT w.id, w.email, w.amount, w.channel, w.channel_name,
+           w.channel_number, w.status, w.created_at, w.currency
+    FROM withdrawals w
+    $where_clause
+    ORDER BY w.created_at DESC
+";
+
+$stmt = mysqli_prepare($con, $query);
+
+if ($params) {
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+}
+
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
+if (mysqli_num_rows($result) === 0) {
+    echo "<tr>
+            <td colspan='9' class='text-center py-5 text-muted'>
+                No withdrawal requests found.
+            </td>
+          </tr>";
+} else {
+
+    while ($data = mysqli_fetch_assoc($result)) {
+
+        $status = (int)$data['status'];
+        $statusBadge = match ($status) {
+            0 => '<span class="badge badge-pending">Pending</span>',
+            1 => '<span class="badge badge-approved">Approved</span>',
+            2 => '<span class="badge badge-rejected">Rejected</span>',
+            default => '<span class="badge bg-secondary">Unknown</span>',
+        };
+
+        $currency = $data['currency'] ?: '$';
+?>
+
+<tr>
+    <td><?= htmlspecialchars($data['id']) ?></td>
+    <td><?= htmlspecialchars($data['email']) ?></td>
+    <td>
+        <strong><?= htmlspecialchars($currency) ?><?= number_format($data['amount'], 2) ?></strong>
+    </td>
+    <td><?= htmlspecialchars($data['channel'] ?? '-') ?></td>
+    <td><?= htmlspecialchars($data['channel_name'] ?? '-') ?></td>
+    <td><?= htmlspecialchars($data['channel_number'] ?? '-') ?></td>
+    <td class="status-cell"><?= $statusBadge ?></td>
+    <td><?= date('d M Y • H:i', strtotime($data['created_at'])) ?></td>
+    <td class="action-cell">
+        <?php if ($status === 0): ?>
+            <button class="btn btn-sm btn-success approve-btn" data-id="<?= $data['id'] ?>">Approve</button>
+            <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
+        <?php else: ?>
+            <small class="text-muted">No action</small>
+        <?php endif; ?>
+    </td>
+</tr>
+
+<?php
+    }
+}
+mysqli_stmt_close($stmt);
+?>
+
                     </tbody>
                 </table>
             </div>
@@ -171,7 +201,7 @@ include('../config/dbcon.php');
 <?php include('inc/footer.php'); ?>
 
 <script>
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     const btn = e.target.closest('button');
     if (!btn) return;
 
@@ -185,7 +215,7 @@ document.addEventListener('click', function(e) {
 
     fetch('codes/manage-withdrawals.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${action}&id=${id}`
     })
     .then(res => res.json())
@@ -193,18 +223,17 @@ document.addEventListener('click', function(e) {
         if (!data.success) return alert(data.message);
 
         const row = btn.closest('tr');
-        row.querySelector('.action-cell').innerHTML = '<small class="text-muted">No action</small>';
+        row.querySelector('.action-cell').innerHTML =
+            '<small class="text-muted">No action</small>';
 
-        if (action === 'approve') {
-            row.querySelector('.status-cell').innerHTML = 
-                '<span class="badge badge-approved">Approved</span>';
-        } else {
-            row.querySelector('.status-cell').innerHTML = 
-                '<span class="badge badge-rejected">Rejected</span>';
-        }
+        row.querySelector('.status-cell').innerHTML =
+            action === 'approve'
+                ? '<span class="badge badge-approved">Approved</span>'
+                : '<span class="badge badge-rejected">Rejected</span>';
     })
     .catch(() => alert('Connection error'));
 });
 </script>
+
 </body>
 </html>
