@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 header('Content-Type: application/json');
 
-// APPROVE (to Processing)
+// APPROVE & COMPLETE (direct to status = 2)
 if (isset($_POST['action']) && $_POST['action'] === 'approve') {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -18,69 +18,49 @@ if (isset($_POST['action']) && $_POST['action'] === 'approve') {
         exit();
     }
 
-    $stmt = $con->prepare("SELECT status FROM withdrawals WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $wd = $result->fetch_assoc();
-    $stmt->close();
+    $con->begin_transaction();
 
-    if (!$wd) {
-        echo json_encode(['success' => false, 'message' => 'Withdrawal not found']);
-        exit();
+    try {
+        // Get current withdrawal data
+        $stmt = $con->prepare("SELECT status, email, amount FROM withdrawals WHERE id = ? LIMIT 1");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $wd = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$wd) {
+            throw new Exception("Withdrawal not found");
+        }
+
+        if ($wd['status'] !== 0) {
+            throw new Exception("This withdrawal has already been processed");
+        }
+
+        // Directly mark as Completed
+        $new_status = 2;
+        $stmt = $con->prepare("UPDATE withdrawals SET status = ? WHERE id = ?");
+        $stmt->bind_param("ii", $new_status, $id);
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to complete withdrawal");
+        }
+        $stmt->close();
+
+        $con->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Withdrawal approved and completed successfully',
+            'new_status' => $new_status
+        ]);
+    } catch (Exception $e) {
+        $con->rollback();
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
-    if ($wd['status'] != 0) {
-        echo json_encode(['success' => false, 'message' => 'This withdrawal has already been processed']);
-        exit();
-    }
-
-    $new_status = 1; // Processing
-    $stmt = $con->prepare("UPDATE withdrawals SET status = ? WHERE id = ?");
-    $stmt->bind_param("ii", $new_status, $id);
-    $success = $stmt->execute();
-    $stmt->close();
-
-    echo json_encode([
-        'success' => $success,
-        'message' => $success ? 'Withdrawal approved (now in processing)' : 'Failed to update status'
-    ]);
     exit();
 }
 
-// COMPLETE
-elseif (isset($_POST['action']) && $_POST['action'] === 'complete') {
-    $id = (int)($_POST['id'] ?? 0);
-    if ($id <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid withdrawal ID']);
-        exit();
-    }
-
-    $stmt = $con->prepare("SELECT status FROM withdrawals WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $wd = $result->fetch_assoc();
-    $stmt->close();
-
-    if (!$wd || $wd['status'] !== 1) {
-        echo json_encode(['success' => false, 'message' => 'Withdrawal must be in processing status']);
-        exit();
-    }
-
-    $new_status = 2; // Completed
-    $stmt = $con->prepare("UPDATE withdrawals SET status = ? WHERE id = ?");
-    $stmt->bind_param("ii", $new_status, $id);
-    $success = $stmt->execute();
-    $stmt->close();
-
-    echo json_encode([
-        'success' => $success,
-        'message' => $success ? 'Withdrawal marked as completed' : 'Failed to update status'
-    ]);
-    exit();
-}
-
-// REJECT + Refund
+// REJECT + Refund balance
 elseif (isset($_POST['action']) && $_POST['action'] === 'reject') {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) {
@@ -99,19 +79,20 @@ elseif (isset($_POST['action']) && $_POST['action'] === 'reject') {
         $stmt->close();
 
         if (!$wd) throw new Exception('Withdrawal not found');
-        if (!in_array($wd['status'], [0, 1])) {
-            throw new Exception('This withdrawal cannot be rejected (already completed/rejected)');
+
+        // Allow rejection only from Pending (0)
+        if ($wd['status'] !== 0) {
+            throw new Exception('This withdrawal cannot be rejected (already processed)');
         }
 
-        // Refund balance if pending or processing
-        if (in_array($wd['status'], [0, 1])) {
-            $stmt = $con->prepare("UPDATE users SET balance = balance + ? WHERE email = ?");
-            $stmt->bind_param("ds", $wd['amount'], $wd['email']);
-            if (!$stmt->execute()) throw new Exception('Failed to refund balance');
-            $stmt->close();
-        }
+        // Refund the full amount
+        $stmt = $con->prepare("UPDATE users SET balance = balance + ? WHERE email = ?");
+        $stmt->bind_param("ds", $wd['amount'], $wd['email']);
+        if (!$stmt->execute()) throw new Exception('Failed to refund balance');
+        $stmt->close();
 
-        $new_status = 3; // Rejected
+        // Mark as Rejected
+        $new_status = 3;
         $stmt = $con->prepare("UPDATE withdrawals SET status = ? WHERE id = ?");
         $stmt->bind_param("ii", $new_status, $id);
         if (!$stmt->execute()) throw new Exception('Failed to reject withdrawal');
@@ -121,7 +102,7 @@ elseif (isset($_POST['action']) && $_POST['action'] === 'reject') {
 
         echo json_encode([
             'success' => true,
-            'message' => 'Withdrawal rejected & balance refunded'
+            'message' => 'Withdrawal rejected and balance refunded'
         ]);
     } catch (Exception $e) {
         $con->rollback();
