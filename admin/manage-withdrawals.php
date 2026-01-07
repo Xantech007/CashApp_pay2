@@ -9,9 +9,9 @@ include('../config/dbcon.php');
     .bg-purple { background-color: #6f42c1 !important; color: white !important; }
     .transition-chevron { transition: transform 0.25s ease; }
     .collapse.show .transition-chevron { transform: rotate(90deg); }
-    .badge-pending   { background-color: #ffc107; color: black; }
-    .badge-approved  { background-color: #198754; color: white; }
-    .badge-rejected  { background-color: #dc3545; color: white; }
+    .badge-pending    { background-color: #ffc107; color: black; }
+    .badge-completed  { background-color: #198754; }
+    .badge-rejected   { background-color: #dc3545; }
 </style>
 
 <main id="main" class="main">
@@ -28,7 +28,7 @@ include('../config/dbcon.php');
 
     <div class="card">
         <div class="card-body">
-            <!-- Filters (unchanged) -->
+            <!-- Filters -->
             <div class="row g-3 align-items-center mt-4 mb-4">
                 <div class="col-md-4">
                     <form method="GET" class="d-flex gap-2">
@@ -81,7 +81,39 @@ include('../config/dbcon.php');
                     </thead>
                     <tbody>
                         <?php
-                        // ... (filters and query part unchanged - same as before) ...
+                        $where_conditions = [];
+                        $params = [];
+                        $types = '';
+
+                        if (!empty($_GET['search'])) {
+                            $search = '%' . trim($_GET['search']) . '%';
+                            $where_conditions[] = "(w.email LIKE ? OR CAST(w.amount AS CHAR) LIKE ?)";
+                            $params[] = $search;
+                            $params[] = $search;
+                            $types .= 'ss';
+                        } elseif (!empty($_GET['date'])) {
+                            $date = date('Y-m-d', strtotime($_GET['date']));
+                            $where_conditions[] = "DATE(w.created_at) = ?";
+                            $params[] = $date;
+                            $types .= 's';
+                        } else {
+                            $where_conditions[] = "DATE(w.created_at) = CURDATE()";
+                        }
+
+                        $where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+
+                        $query = "
+                            SELECT w.id, w.email, w.amount, w.channel, w.channel_name, 
+                                   w.channel_number, w.status, w.created_at
+                            FROM withdrawals w
+                            $where_clause
+                            ORDER BY w.created_at DESC
+                        ";
+
+                        $stmt = mysqli_prepare($con, $query);
+                        if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
+                        mysqli_stmt_execute($stmt);
+                        $result = mysqli_stmt_get_result($stmt);
 
                         if (mysqli_num_rows($result) == 0) {
                             echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No withdrawal requests found.</td></tr>";
@@ -113,9 +145,9 @@ include('../config/dbcon.php');
                                                 $status = (int)$data['status'];
                                                 $statusBadge = match($status) {
                                                     0 => '<span class="badge badge-pending">Pending</span>',
-                                                    1 => '<span class="badge badge-approved">Approved</span>',
-                                                    2 => '<span class="badge badge-rejected">Rejected</span>',
-                                                    default => '<span class="badge bg-secondary">Unknown</span>'
+                                                    2 => '<span class="badge badge-completed">Completed</span>',
+                                                    3 => '<span class="badge badge-rejected">Rejected</span>',
+                                                    default => '<span class="badge bg-secondary">Processed</span>'
                                                 };
                                             ?>
                                                 <tr data-withdrawal-id="<?= $data['id'] ?>">
@@ -129,7 +161,7 @@ include('../config/dbcon.php');
                                                     <td><?= date('d M Y • H:i', strtotime($data['created_at'])) ?></td>
                                                     <td class="action-cell">
                                                         <?php if ($status === 0): ?>
-                                                            <button class="btn btn-sm btn-success approve-btn me-1" data-id="<?= $data['id'] ?>">Approve</button>
+                                                            <button class="btn btn-sm btn-success approve-btn me-1" data-id="<?= $data['id'] ?>">Approve & Complete</button>
                                                             <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
                                                         <?php else: ?>
                                                             <small class="text-muted">No action</small>
@@ -165,8 +197,7 @@ document.addEventListener('click', function(e) {
     if (!action) return;
 
     const id = btn.dataset.id;
-    const actionText = action === 'approve' ? 'approve' : 'reject';
-    if (!confirm(`Are you sure you want to ${actionText} this withdrawal?`)) return;
+    if (!confirm(`Are you sure you want to ${action === 'approve' ? 'approve and complete' : 'reject'} this withdrawal?`)) return;
 
     fetch('codes/manage-withdrawals.php', {
         method: 'POST',
@@ -181,7 +212,7 @@ document.addEventListener('click', function(e) {
             const actionCell = row.querySelector('.action-cell');
 
             if (action === 'approve') {
-                statusCell.innerHTML = '<span class="badge badge-approved">Approved</span>';
+                statusCell.innerHTML = '<span class="badge badge-completed">Completed</span>';
                 actionCell.innerHTML = '<small class="text-muted">No action</small>';
             } else if (action === 'reject') {
                 statusCell.innerHTML = '<span class="badge badge-rejected">Rejected</span>';
