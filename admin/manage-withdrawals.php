@@ -10,7 +10,6 @@ include('../config/dbcon.php');
     .transition-chevron { transition: transform 0.25s ease; }
     .collapse.show .transition-chevron { transform: rotate(90deg); }
     .badge-pending    { background-color: #ffc107; color: black; }
-    .badge-processing { background-color: #0dcaf0; color: white; }
     .badge-completed  { background-color: #198754; }
     .badge-rejected   { background-color: #dc3545; }
 </style>
@@ -146,10 +145,9 @@ include('../config/dbcon.php');
                                                 $status = (int)$data['status'];
                                                 $statusBadge = match($status) {
                                                     0 => '<span class="badge badge-pending">Pending</span>',
-                                                    1 => '<span class="badge badge-processing">Processing</span>',
                                                     2 => '<span class="badge badge-completed">Completed</span>',
                                                     3 => '<span class="badge badge-rejected">Rejected</span>',
-                                                    default => '<span class="badge bg-secondary">Unknown</span>'
+                                                    default => '<span class="badge bg-secondary">Processed</span>'
                                                 };
                                             ?>
                                                 <tr data-withdrawal-id="<?= $data['id'] ?>">
@@ -163,10 +161,7 @@ include('../config/dbcon.php');
                                                     <td><?= date('d M Y • H:i', strtotime($data['created_at'])) ?></td>
                                                     <td class="action-cell">
                                                         <?php if ($status === 0): ?>
-                                                            <button class="btn btn-sm btn-success approve-btn me-1" data-id="<?= $data['id'] ?>">Approve</button>
-                                                            <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
-                                                        <?php elseif ($status === 1): ?>
-                                                            <button class="btn btn-sm btn-success complete-btn me-1" data-id="<?= $data['id'] ?>">Mark Complete</button>
+                                                            <button class="btn btn-sm btn-success approve-btn me-1" data-id="<?= $data['id'] ?>">Approve & Complete</button>
                                                             <button class="btn btn-sm btn-danger reject-btn" data-id="<?= $data['id'] ?>">Reject</button>
                                                         <?php else: ?>
                                                             <small class="text-muted">No action</small>
@@ -197,13 +192,12 @@ document.addEventListener('click', function(e) {
 
     let action = null;
     if (btn.classList.contains('approve-btn')) action = 'approve';
-    else if (btn.classList.contains('complete-btn')) action = 'complete';
     else if (btn.classList.contains('reject-btn')) action = 'reject';
 
     if (!action) return;
 
     const id = btn.dataset.id;
-    if (!confirm(`Are you sure you want to ${action} this withdrawal?`)) return;
+    if (!confirm(`Are you sure you want to ${action === 'approve' ? 'approve and complete' : 'reject'} this withdrawal?`)) return;
 
     fetch('codes/manage-withdrawals.php', {
         method: 'POST',
@@ -218,12 +212,6 @@ document.addEventListener('click', function(e) {
             const actionCell = row.querySelector('.action-cell');
 
             if (action === 'approve') {
-                statusCell.innerHTML = '<span class="badge badge-processing">Processing</span>';
-                actionCell.innerHTML = `
-                    <button class="btn btn-sm btn-success complete-btn me-1" data-id="${id}">Mark Complete</button>
-                    <button class="btn btn-sm btn-danger reject-btn" data-id="${id}">Reject</button>
-                `;
-            } else if (action === 'complete') {
                 statusCell.innerHTML = '<span class="badge badge-completed">Completed</span>';
                 actionCell.innerHTML = '<small class="text-muted">No action</small>';
             } else if (action === 'reject') {
