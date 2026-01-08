@@ -72,7 +72,7 @@ include('../config/dbcon.php');
                 <table class="table table-borderless" id="depositsTable">
                     <thead>
                         <tr>
-                            <th>User ID</th>
+                            <th>ID</th>
                             <th>Amount</th>
                             <th>Name</th>
                             <th>Email</th>
