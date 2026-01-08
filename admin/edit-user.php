@@ -55,7 +55,7 @@ include('inc/sidebar.php');
                     if (isset($_GET['id'])) {
                         $id = mysqli_real_escape_string($con, $_GET['id']);
 
-                        $query = "SELECT id, name, balance, email, btc_wallet, refered_by, country,
+                        $query = "SELECT id, name, balance, email, refered_by, country,
                                          referal_bonus, message, payment_amount, created_at
                                   FROM users
                                   WHERE id='$id'
@@ -69,7 +69,6 @@ include('inc/sidebar.php');
                             $id = $row['id'];
                             $balance = $row['balance'];
                             $email = $row['email'];
-                            $wallet = $row['btc_wallet'];
                             $referral = $row['refered_by'];
                             $country = $row['country'];
                             $bonus = $row['referal_bonus'];
@@ -101,11 +100,6 @@ include('inc/sidebar.php');
                         <div class="col-md-6 form-group mb-3">
                             <label class="mb-2">Country</label>
                             <input type="text" class="form-control" value="<?= htmlspecialchars($country) ?>" readonly>
-                        </div>
-
-                        <div class="col-md-6 form-group mb-3">
-                            <label class="mb-2">Bitcoin Wallet</label>
-                            <input type="text" class="form-control" value="<?= htmlspecialchars($wallet) ?>" readonly>
                         </div>
 
                         <!-- ACCOUNT CREATED DATE -->
