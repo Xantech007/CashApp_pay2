@@ -72,6 +72,7 @@ include('../config/dbcon.php');
                 <table class="table table-borderless" id="depositsTable">
                     <thead>
                         <tr>
+                            <th>User ID</th>
                             <th>Amount</th>
                             <th>Name</th>
                             <th>Email</th>
@@ -138,7 +139,7 @@ include('../config/dbcon.php');
                         $result = mysqli_stmt_get_result($stmt);
 
                         if (mysqli_num_rows($result) == 0) {
-                            echo "<tr><td colspan='9' class='text-center py-5 text-muted'>No deposits found.</td></tr>";
+                            echo "<tr><td colspan='10' class='text-center py-5 text-muted'>No deposits found.</td></tr>";
                         }
 
                         while ($row = mysqli_fetch_assoc($result)) {
@@ -166,6 +167,9 @@ include('../config/dbcon.php');
                         ?>
 
                         <tr>
+                            <td>
+                                <?= $user_id ? $user_id : '<span class="text-muted">N/A</span>' ?>
+                            </td>
                             <td><?= $currency . number_format($amount, 2) ?></td>
                             <td><?= $name ?></td>
                             <td><?= $email ?></td>
