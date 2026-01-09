@@ -7,7 +7,7 @@ include('inc/sidebar.php');
 
 if (!isset($_GET['id'])) {
     $_SESSION['error'] = "Invalid region selected.";
-    header("Location: region-settings.php");
+    header("Location: region_settings.php");
     exit();
 }
 
@@ -17,7 +17,7 @@ $query_run = mysqli_query($con, $query);
 
 if (mysqli_num_rows($query_run) == 0) {
     $_SESSION['error'] = "Region not found.";
-    header("Location: region-settings.php");
+    header("Location: region_settings.php");
     exit();
 }
 
@@ -143,7 +143,7 @@ $data = mysqli_fetch_assoc($query_run);
 
                 <div class="mt-4">
                     <button type="submit" name="update_region" class="btn btn-secondary">Update Region</button>
-                    <a href="region-settings.php" class="btn btn-light">Cancel</a>
+                    <a href="region_settings.php" class="btn btn-light">Cancel</a>
                 </div>
 
             </form>
