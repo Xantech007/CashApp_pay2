@@ -6,6 +6,7 @@ if (isset($_POST['update_qr'])) {
 
     $region_id = mysqli_real_escape_string($con, $_POST['region_id']);
 
+    // Check if a file was uploaded
     if (empty($_FILES['qr_image']['name'])) {
         $_SESSION['error'] = "Please select a QR/image file to upload.";
         header("Location: ../edit-region-qr.php?id=$region_id");
@@ -27,8 +28,8 @@ if (isset($_POST['update_qr'])) {
         }
     }
 
-    // Unique filename
-    $filename = time() . '_' . basename($_FILES['qr_image']['name']);
+    // Use original filename
+    $filename = basename($_FILES['qr_image']['name']);
     $full_server_path = $server_path . $filename;
     $full_db_path = $db_path . $filename;
 
