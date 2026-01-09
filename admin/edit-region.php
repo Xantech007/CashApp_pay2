@@ -33,10 +33,9 @@ $data = mysqli_fetch_assoc($query_run);
     <div class="card">
         <div class="card-body">
 
-            <form action="codes/region_settings.php" method="POST" enctype="multipart/form-data">
+            <form action="codes/region_settings.php" method="POST">
 
                 <input type="hidden" name="id" value="<?= $data['id'] ?>">
-                <input type="hidden" name="auth_id" value="<?= $_SESSION['id'] ?>">
 
                 <!-- Country / Currency -->
                 <div class="row mb-3">
@@ -69,7 +68,7 @@ $data = mysqli_fetch_assoc($query_run);
                     </div>
                 </div>
 
-                <!-- Channel Names -->
+                <!-- Channel Details -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label>Alt Channel</label>
@@ -103,7 +102,6 @@ $data = mysqli_fetch_assoc($query_run);
                     </div>
                 </div>
 
-                <!-- Channel Value Fields -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label>Channel Name Value</label>
@@ -127,24 +125,15 @@ $data = mysqli_fetch_assoc($query_run);
                     </div>
                 </div>
 
-                <div class="row mb-3">
+                <div class="row mb-4">
                     <div class="col-md-6">
                         <label>Alt Rate</label>
                         <input type="text" name="alt_rate" class="form-control" value="<?= htmlspecialchars($data['alt_rate']) ?>">
                     </div>
-                    <div class="col-md-6">
-                        <label>QR / Image</label>
-                        <input type="file" name="qr_image" class="form-control">
-                        <?php if (!empty($data['qr_image']) && file_exists($data['qr_image'])): ?>
-                            <img src="<?= htmlspecialchars($data['qr_image']) ?>" class="preview-img mt-2">
-                        <?php endif; ?>
-                    </div>
                 </div>
 
-                <div class="mt-4">
-                    <button type="submit" name="update_region" class="btn btn-secondary">Update Region</button>
-                    <a href="region_settings.php" class="btn btn-light">Cancel</a>
-                </div>
+                <button type="submit" name="update_region" class="btn btn-secondary">Update Region</button>
+                <a href="region_settings.php" class="btn btn-light">Cancel</a>
 
             </form>
 
