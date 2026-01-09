@@ -3,7 +3,7 @@ session_start();
 include('../../config/dbcon.php');
 
 function clean($data) {
-    return htmlspecialchars(trim($data));
+    return mysqli_real_escape_string($GLOBALS['con'], trim($data));
 }
 
 /*
@@ -29,32 +29,18 @@ if (isset($_POST['add_region'])) {
     $payment_amount       = clean($_POST['payment_amount']);
     $rate                 = clean($_POST['rate']);
     $alt_rate             = clean($_POST['alt_rate']);
-    $auth_id              = $_POST['auth_id'];
 
-    // Image upload
-    $image_path = '';
-    if (!empty($_FILES['qr_image']['name'])) {
-        $folder = "../../uploads/regions/";
-        if (!is_dir($folder)) {
-            mkdir($folder, 0777, true);
-        }
-
-        $filename = time() . '_' . $_FILES['qr_image']['name'];
-        $image_path = $folder . $filename;
-
-        move_uploaded_file($_FILES['qr_image']['tmp_name'], $image_path);
-    }
-
-    $query = "INSERT INTO region_settings 
-        (country, currency, alt_currency, crypto, Channel, alt_channel, Channel_name, alt_ch_name,
-         Channel_number, alt_ch_number, chnl_value, chnl_name_value, chnl_number_value,
-         payment_amount, rate, alt_rate, qr_image)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    $query = "INSERT INTO region_settings
+        (country, currency, alt_currency, crypto, Channel, alt_channel,
+         Channel_name, alt_ch_name, Channel_number, alt_ch_number,
+         chnl_value, chnl_name_value, chnl_number_value,
+         payment_amount, rate, alt_rate)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     $stmt = mysqli_prepare($con, $query);
     mysqli_stmt_bind_param(
         $stmt,
-        "sssissssssssssdds",
+        "sssissssssssssdd",
         $country,
         $currency,
         $alt_currency,
@@ -70,8 +56,7 @@ if (isset($_POST['add_region'])) {
         $chnl_number_value,
         $payment_amount,
         $rate,
-        $alt_rate,
-        $image_path
+        $alt_rate
     );
 
     if (mysqli_stmt_execute($stmt)) {
@@ -80,7 +65,7 @@ if (isset($_POST['add_region'])) {
         $_SESSION['error'] = "Failed to add region.";
     }
 
-    header("Location: ../region-settings.php");
+    header("Location: ../region_settings.php");
     exit();
 }
 
@@ -91,7 +76,7 @@ if (isset($_POST['add_region'])) {
 */
 if (isset($_POST['update_region'])) {
 
-    $id                   = $_POST['id'];
+    $id                   = clean($_POST['id']);
     $country              = clean($_POST['country']);
     $currency             = clean($_POST['currency']);
     $alt_currency         = clean($_POST['alt_currency']);
@@ -108,22 +93,6 @@ if (isset($_POST['update_region'])) {
     $payment_amount       = clean($_POST['payment_amount']);
     $rate                 = clean($_POST['rate']);
     $alt_rate             = clean($_POST['alt_rate']);
-
-    // Image update
-    if (!empty($_FILES['qr_image']['name'])) {
-        $folder = "../../uploads/regions/";
-        if (!is_dir($folder)) {
-            mkdir($folder, 0777, true);
-        }
-
-        $filename = time() . '_' . $_FILES['qr_image']['name'];
-        $image_path = $folder . $filename;
-        move_uploaded_file($_FILES['qr_image']['tmp_name'], $image_path);
-
-        $img_sql = ", qr_image='$image_path'";
-    } else {
-        $img_sql = "";
-    }
 
     $query = "UPDATE region_settings SET
         country='$country',
@@ -142,7 +111,6 @@ if (isset($_POST['update_region'])) {
         payment_amount='$payment_amount',
         rate='$rate',
         alt_rate='$alt_rate'
-        $img_sql
         WHERE id='$id'";
 
     if (mysqli_query($con, $query)) {
@@ -151,7 +119,7 @@ if (isset($_POST['update_region'])) {
         $_SESSION['error'] = "Update failed.";
     }
 
-    header("Location: ../region-settings.php");
+    header("Location: ../region_settings.php");
     exit();
 }
 
@@ -162,15 +130,14 @@ if (isset($_POST['update_region'])) {
 */
 if (isset($_POST['delete'])) {
 
-    $id = $_POST['delete'];
+    $id = clean($_POST['delete']);
 
-    $query = "DELETE FROM region_settings WHERE id='$id'";
-    if (mysqli_query($con, $query)) {
+    if (mysqli_query($con, "DELETE FROM region_settings WHERE id='$id'")) {
         $_SESSION['success'] = "Region deleted successfully.";
     } else {
         $_SESSION['error'] = "Delete failed.";
     }
 
-    header("Location: ../region-settings.php");
+    header("Location: ../region_settings.php");
     exit();
 }
