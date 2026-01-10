@@ -82,7 +82,6 @@ include('../config/dbcon.php');
                             <th>ID</th>
                             <th>Name</th>
                             <th>Email</th>
-                            <th>Referred By</th>
                             <th>Balance</th>
                             <th>Profile</th>
                             <th>Verification Status</th>
@@ -126,7 +125,7 @@ include('../config/dbcon.php');
 
                         // Main Query
                         $query = "
-                            SELECT id, name, email, refered_by, image, verify, balance,
+                            SELECT id, name, email, image, verify, balance,
                                    DATE_ADD(created_at, INTERVAL 9 HOUR) AS created_at
                             FROM users
                             $where_clause
@@ -174,7 +173,6 @@ include('../config/dbcon.php');
                                                     <td><?= htmlspecialchars($data['id']) ?></td>
                                                     <td><?= htmlspecialchars($data['name']) ?></td>
                                                     <td><?= htmlspecialchars($data['email']) ?></td>
-                                                    <td><?= htmlspecialchars($data['refered_by'] ?? '-') ?></td>
 
                                                     <td>$<?= number_format($data['balance'] ?? 0, 2) ?></td>
 
