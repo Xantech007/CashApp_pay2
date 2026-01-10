@@ -163,9 +163,8 @@ include('../config/dbcon.php');
                                     </td>
                                 </tr>
 
-                                <tr class="collapse show" id="<?= $collapseId ?>">
-                                    <td colspan="9" class="p-0">
-                                        <table class="table table-sm table-hover mb-0">
+                                    <tbody class="collapse show" id="<?= $collapseId ?>">
+
 
                                             <?php foreach ($users as $data): ?>
                                                 <tr>
@@ -227,9 +226,8 @@ include('../config/dbcon.php');
                                                 </tr>
                                             <?php endforeach; ?>
 
-                                        </table>
-                                    </td>
-                                </tr>
+                                        </tbody>
+
 
                                 <?php
                             }
