@@ -20,7 +20,7 @@ if ($id <= 0 || !in_array($action, ['approve', 'reject'], true)) {
 mysqli_begin_transaction($con);
 
 try {
-    // Lock the withdrawal row to prevent race conditions
+    // Lock withdrawal row
     $stmt = mysqli_prepare(
         $con,
         "SELECT status, email, usd_amount 
@@ -28,7 +28,6 @@ try {
          WHERE id = ? 
          FOR UPDATE"
     );
-    
     mysqli_stmt_bind_param($stmt, "i", $id);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
@@ -45,6 +44,7 @@ try {
 
     /* ========= APPROVE ========= */
     if ($action === 'approve') {
+
         $stmt = mysqli_prepare(
             $con,
             "UPDATE withdrawals 
@@ -53,33 +53,34 @@ try {
         );
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
-        
+
         if (mysqli_stmt_affected_rows($stmt) !== 1) {
-            throw new Exception('Failed to approve withdrawal - status already changed');
+            throw new Exception('Failed to approve withdrawal');
         }
         mysqli_stmt_close($stmt);
     }
 
-    /* ========= REJECT + REFUND ========= */
+    /* ========= REJECT + REFUND + MESSAGE ========= */
     if ($action === 'reject') {
-        // Refund using the USD amount (this is the value that was deducted from user's balance)
-        $refund_amount = (float)$wd['usd_amount'];
 
+        $refund_amount = (float)$wd['usd_amount'];
         if ($refund_amount <= 0) {
-            throw new Exception('Invalid refund amount (usd_amount ≤ 0)');
+            throw new Exception('Invalid refund amount');
         }
 
+        // Refund balance + update message
         $stmt = mysqli_prepare(
             $con,
             "UPDATE users 
-             SET balance = balance + ? 
+             SET balance = balance + ?, 
+                 message = 'Re-enable your account before submitting a withdrawal request.'
              WHERE email = ?"
         );
         mysqli_stmt_bind_param($stmt, "ds", $refund_amount, $wd['email']);
         mysqli_stmt_execute($stmt);
 
         if (mysqli_stmt_affected_rows($stmt) !== 1) {
-            throw new Exception('Refund failed - user not found or multiple rows affected');
+            throw new Exception('Refund failed or user not found');
         }
         mysqli_stmt_close($stmt);
 
@@ -94,21 +95,24 @@ try {
         mysqli_stmt_execute($stmt);
 
         if (mysqli_stmt_affected_rows($stmt) !== 1) {
-            throw new Exception('Failed to reject withdrawal - status already changed');
+            throw new Exception('Failed to reject withdrawal');
         }
         mysqli_stmt_close($stmt);
     }
 
     mysqli_commit($con);
-    
+
     echo json_encode([
         'success' => true,
-        'message' => $action === 'approve' ? 'Withdrawal approved' : 'Withdrawal rejected and balance refunded'
+        'message' => $action === 'approve'
+            ? 'Withdrawal approved'
+            : 'Withdrawal rejected, refunded, and user notified'
     ]);
 
 } catch (Exception $e) {
+
     mysqli_rollback($con);
-    
+
     echo json_encode([
         'success' => false,
         'message' => $e->getMessage()
