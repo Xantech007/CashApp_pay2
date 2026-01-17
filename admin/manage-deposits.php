@@ -242,7 +242,7 @@ include('../config/dbcon.php');
                                 <?php endif; ?>
 
                                 <?php if ($user_id): ?>
-                                    <a href="edit-user.php?id=<?= $user_id ?>" class="btn btn-light btn-sm">Edit</a>
+                                    <a href="deposits-edit-user.php?id=<?= $user_id ?>" class="btn btn-light btn-sm">Edit</a>
                                 <?php else: ?>
                                     <span class="text-muted">No User</span>
                                 <?php endif; ?>
