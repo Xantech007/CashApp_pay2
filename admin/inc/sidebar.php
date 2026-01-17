@@ -28,7 +28,7 @@
     </a>
   </li><!-- End Dashboard Nav -->
   <li class="nav-item">
-    <a class="nav-link <?= $page == 'manage-deposits.php' || $page == 'edit-deposit.php' ? '' :  'collapsed'?> " href="manage-deposits">
+    <a class="nav-link <?= $page == 'manage-deposits.php' || $page == 'deposits-edit-user.php'  || $page == 'edit-deposit.php' ? '' :  'collapsed'?> " href="manage-deposits">
       <i class="bi bi-box-arrow-down"></i>
       <span>Manage deposits</span>
     </a>
