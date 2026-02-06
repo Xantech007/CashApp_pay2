@@ -92,7 +92,10 @@ include('includes/navbar.php');
                         </li>
                         <li>
                             <p>
-                                <i class="fas fa-phone"></i> +44 7438 783028
+                                <i class="fab fa-whatsapp"></i>
+                                <a href="https://wa.me/447438783028" target="_blank" rel="noopener noreferrer">
+                                    +44 7438 783028
+                                </a>
                             </p>
                         </li>
                         <li>
