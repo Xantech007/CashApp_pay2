@@ -101,7 +101,9 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="far fa-envelope"></i>
-                                pay1.cashapp@gmail.com
+                                <a href="mailto:pay1.cashapp@gmail.com">
+                                    pay1.cashapp@gmail.com
+                                </a>
                             </p>
                         </li>
                         <li>
