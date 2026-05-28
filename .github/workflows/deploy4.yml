@@ -13,8 +13,8 @@ jobs:
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP2_USERNAME }}
-        password: ${{ secrets.FTP2_PASSWORD }}
+        username: ${{ secrets.FTP4_USERNAME }}
+        password: ${{ secrets.FTP4_PASSWORD }}
         server-dir: cashapp.web1337.net/htdocs/  # Adjust to your target directory, e.g., public_html/subfolder
         protocol: ftp  # Use 'ftps' for secure FTP if supported by Namecheap
         port: 21  # Adjust to 21098 for SFTP if needed
