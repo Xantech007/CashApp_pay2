@@ -109,7 +109,7 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="fas fa-globe-americas"></i>
-                                www.pay1.cashapp.ct.ws
+                                www.pay1.cashapp.gt.tc
                             </p>
                         </li>
                     </ul>
