@@ -5,11 +5,7 @@ include('inc/navbar.php');
 include('inc/sidebar.php');
 ?>
 
- 
-
   <!-- ======= Sidebar ======= -->
-
-
   <main id="main" class="main">
 
     <div class="pagetitle">
@@ -101,11 +97,42 @@ include('inc/sidebar.php');
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-box-arrow-in-down"></i>
+                      <i class="bi bi-box-arrow-bar-down"></i>
                     </div>
                     <div class="ps-3">
                       <h6><?=  $count_deposits ?></h6>
                  
+
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div><!-- End Sales Card -->
+
+            <!-- Sales Card -->
+            <div class="col-xxl-4 col-md-6">
+              <div class="card info-card sales-card">
+
+                
+
+                <div class="card-body">
+                  <h5 class="card-title">Total Supported Region</h5>
+
+                  <div class="d-flex align-items-center">
+                    <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
+                    <div class="card-icon rounded-circle d-flex align-items-center justify-content-center bg-danger">
+                      <i class="bi bi-settings"></i>
+                    </div>
+                    <div class="ps-3">
+                      <?php
+                      $total_region_settings = "SELECT id FROM region_settings";
+                      $total_region_settings_query = mysqli_query($con, $total_region_settings);
+                      
+                      $count_region_settings = mysqli_num_rows($total_region_settings_query);
+                      ?>
+                      <h6><?= $count_region_settings ?></h6>
+            
 
                     </div>
                   </div>
