@@ -120,7 +120,6 @@ include('inc/sidebar.php');
                   <h5 class="card-title">Total Supported Region</h5>
 
                   <div class="d-flex align-items-center">
-                    <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center bg-danger">
                       <i class="bi bi-settings"></i>
                     </div>
