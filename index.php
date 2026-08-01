@@ -890,7 +890,10 @@ include('includes/navbar.php');
                         </li>
                         <li>
                             <p>
-                                <i class="fas fa-phone"></i> +44 7438 783028
+                                <i class="fab fa-whatsapp"></i>
+                                <a href="https://wa.me/13072924199" target="_blank" rel="noopener noreferrer">
+                                    wa.me/13072924199
+                                </a>
                             </p>
                         </li>
                         <li>
@@ -902,7 +905,7 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="fas fa-globe-americas"></i>
-                                www.pay1.cashapp.gt.tc
+                                https://pay1.cashapp.ct.ws
                             </p>
                         </li>
                     </ul>
