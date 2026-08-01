@@ -93,8 +93,8 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="fab fa-whatsapp"></i>
-                                <a href="https://wa.me/447438783028" target="_blank" rel="noopener noreferrer">
-                                    wa.me/447438783028
+                                <a href="https://wa.me/13072924199" target="_blank" rel="noopener noreferrer">
+                                    wa.me/13072924199
                                 </a>
                             </p>
                         </li>
@@ -109,7 +109,7 @@ include('includes/navbar.php');
                         <li>
                             <p>
                                 <i class="fas fa-globe-americas"></i>
-                                www.pay1.cashapp.gt.tc
+                                https://pay1.cashapp.ct.ws
                             </p>
                         </li>
                     </ul>
