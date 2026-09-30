@@ -1,10 +1,10 @@
 <?php
 //connection to mysql database
 
-$host = "sql212.infinityfree.com";  //database host
-$username = "if0_40198523";  //database user
-$password = "Pdluefrv57ySr";    //database password
-$database = "if0_40198523_pay2";  //database name
+$host = "sql301.infinityfree.com";  //database host
+$username = "if0_43053898";  //database user
+$password = "01pJ9o5QtX";    //database password
+$database = "if0_43053898_pay2";  //database name
 
 $con = mysqli_connect("$host","$username","$password","$database");
 
