@@ -1,0 +1,46 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #000;
+    color: #fff;
+}
+
+.video-feed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.video-container {
+    position: relative;
+    width: 300px;
+    margin: 20px 0;
+}
+
+.video {
+    width: 100%;
+    border-radius: 8px;
+}
+
+.controls {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.like-button, .play-button {
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    padding: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.likes-count {
+    margin-left: 5px;
+    font-size: 14px;
+}
